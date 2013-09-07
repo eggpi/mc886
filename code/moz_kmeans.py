@@ -8,7 +8,7 @@ import cv2
 import numpy as np
 import matplotlib.pyplot as plot
 
-"""
+'''
 A sketch for prediction based on k-means.
 
 The basic idea is to use k-means to cluster subresources fetched by the
@@ -26,10 +26,14 @@ Unanswered questions:
       normalize a timestamp?
     - Are we going to run k-means on every prediction request (that would make
       normalization easy)? How expensive is that? Look into online kmeans!
-"""
+'''
+
+ONE_HOUR = 3600 * 1000000L
+ONE_DAY = 24 * ONE_HOUR
+ONE_WEEK = 7L * ONE_DAY
 
 K = 3 # FIXME needs tweaking
-now = 1378215391951426.0 # very rudimentary normalization
+now = ONE_HOUR # FIXME tweak to make more/less sensitive
 
 def load_db(dbfile):
     db = sqlite3.connect(dbfile)
@@ -130,6 +134,8 @@ def predict_for_page_load(uri, pages, clusters_for_hosts, hosts):
     clusters = clusters_for_hosts[host]
     page = find_page_by_uri(uri, pages)
 
+    print 'Cluster sizes: {}'.format([len(c[1]) for c in clusters])
+
     means = [c[0] for c in clusters]
     distances = map(
         lambda mean: np.linalg.norm(mean - (page[-2], page[-1] / now)),
@@ -143,11 +149,9 @@ def predict_for_page_load(uri, pages, clusters_for_hosts, hosts):
             closest, mindist = i, d
 
     sres = clusters[closest][1]
-
-    print 'Would take predictive actions for:'
-    pprint.pprint([sr[2] for sr in sres])
-
     visualize(page, clusters, closest)
+
+    return sres
 
 def visualize(page, clusters, closest_cluster):
     colors = [
@@ -158,19 +162,45 @@ def visualize(page, clusters, closest_cluster):
 
     assert len(colors) >= K - 1
 
-    plot.plot(page[-2], page[-1] / now, color = 'brown', marker = '^')
+    page_coords = (page[-2], page[-1] / now)
+
+    print 'Page is at: {0}'.format(page_coords)
+    plot.plot(*page_coords, color = 'brown', marker = '^')
+    plot.annotate('loaded page', xy = page_coords,
+                  textcoords = 'axes fraction',
+                  xytext = (0.2, 0.8),
+                  arrowprops = {
+                      'facecolor': 'black',
+                      'shrink': 0.04,
+                      'width': 1,
+                      'headwidth': 10
+                  })
+
     for cidx, (mean, sres) in enumerate(clusters):
         color = 'red' if cidx == closest_cluster else colors.pop(0)
 
+        print '{0} cluster: {1}'.format(color, mean)
+        plot.plot(*mean, color = color, marker = 'v')
         for sr in sres:
             plot.plot(sr[-2], sr[-1] / now, color = color, marker = 'o')
 
-    plot.title("hits x normalized timestamp")
-    plot.show()
+    plot.title('Clusters for host')
+    plot.xlabel('hits')
+    plot.ylabel('normalized timestamp')
 
 if __name__ == "__main__":
     import sys
 
     hosts, pages, subresources = load_db(sys.argv[1])
     clusters_for_hosts = cluster_subresources_for_hosts(hosts, pages, subresources)
-    predict_for_page_load(sys.argv[2], pages, clusters_for_hosts, hosts)
+
+    page = find_page_by_uri(sys.argv[2], pages)
+    explicit_sres = [sr for sr in subresources if sr[1] == page[0]]
+
+    predicted_sres = predict_for_page_load(sys.argv[2], pages, clusters_for_hosts, hosts)
+
+    print 'Would take predictive actions for {0} items, ' \
+          'out of which {1} were explicitly loaded last time, ' \
+          'and the page loaded a total of {2} subresources' \
+          .format(len(predicted_sres), len(set(predicted_sres) & set(explicit_sres)), len(explicit_sres))
+    plot.show()
