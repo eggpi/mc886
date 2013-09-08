@@ -13,6 +13,7 @@ Timestamp:
     - Use timestamp long in the future?
     - Use number of weeks/days/hours since epoch?
     - Normalize using current time? (current - timestamp) / hours?
+    - Decompose timestamp in number of days, hours and minutes?
 
 youtube.seer.sqlite has some problems with pages: though I accessed youtube.com/
 and not www.youtube.com/, all subresources point to www.youtube.com. So
