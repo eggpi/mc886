@@ -188,5 +188,10 @@ if __name__ == "__main__":
     if visited_page is None:
         print >>sys.stderr, 'Asked predict an unknown page!'
 
+    explicit = [sr for sr in subresources if sr[1] == visited_page[0]]
     predicted = seer.predict_for_page_load(visited_page[1], visited_page[3], visited_page[2])
-    print 'Predicted {} subresources.'.format(len(predicted))
+
+    print 'Would take predictive actions for {0} items, ' \
+          'out of which {1} were explicitly loaded last time, ' \
+          'and the page loaded a total of {2} subresources' \
+          .format(len(predicted), len(set(predicted) & set(explicit)), len(explicit))
