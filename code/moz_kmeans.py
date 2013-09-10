@@ -3,6 +3,8 @@ import pprint
 import sqlite3
 from urllib2 import urlparse
 from collections import defaultdict
+from datetime import datetime
+from dateutil.relativedelta import relativedelta
 
 import cv2
 import numpy as np
@@ -28,12 +30,24 @@ Unanswered questions:
       normalization easy)? How expensive is that? Look into online kmeans!
 '''
 
-ONE_HOUR = 3600 * 1000000L
+ONE_MINUTE = 60 * 1e6
+ONE_HOUR = 60 * ONE_MINUTE
 ONE_DAY = 24 * ONE_HOUR
 ONE_WEEK = 7L * ONE_DAY
 
-K = 3 # FIXME needs tweaking
-now = ONE_HOUR # FIXME tweak to make more/less sensitive
+K = 5 # FIXME needs tweaking
+
+EPOCH = datetime(1970, 1, 1)
+SHIFTED_EPOCH = datetime(2013, 1, 1)
+END_OF_THE_WORLD = SHIFTED_EPOCH + relativedelta(years = 1)
+
+SHIFTED_EPOCH_US = 1e6 * (SHIFTED_EPOCH - EPOCH).total_seconds()
+END_OF_THE_WORLD_US = 1e6 * (END_OF_THE_WORLD - EPOCH).total_seconds()
+
+def make_vector(hits, timestamp):
+    ts = (timestamp - SHIFTED_EPOCH_US) / \
+         (END_OF_THE_WORLD_US - SHIFTED_EPOCH_US)
+    return hits, ts
 
 def load_db(dbfile):
     db = sqlite3.connect(dbfile)
@@ -95,7 +109,7 @@ def cluster_subresources_for_hosts(hosts, pages, subresources):
             # make a numpy array out of the hit count and
             # timestamp for each subresource
             sres_vectors = np.array(
-                [(sres[-2], sres[-1] / now) for sres in host_sres],
+                [make_vector(sres[-2], sres[-1]) for sres in host_sres],
                 dtype = 'float32')
 
             retval, clusters, means = cv2.kmeans(
@@ -138,7 +152,7 @@ def predict_for_page_load(uri, pages, clusters_for_hosts, hosts):
 
     means = [c[0] for c in clusters]
     distances = map(
-        lambda mean: np.linalg.norm(mean - (page[-2], page[-1] / now)),
+        lambda mean: np.linalg.norm(mean - make_vector(page[-2], page[-1])),
         means)
 
     # find the closest cluster
@@ -157,12 +171,13 @@ def visualize(page, clusters, closest_cluster):
     colors = [
         'black',
         'yellow',
-        'green'
+        'green',
+        'blue'
     ]
 
     assert len(colors) >= K - 1
 
-    page_coords = (page[-2], page[-1] / now)
+    page_coords = make_vector(page[-2], page[-1])
 
     print 'Page is at: {0}'.format(page_coords)
     plot.plot(*page_coords, color = 'brown', marker = '^')
@@ -182,7 +197,7 @@ def visualize(page, clusters, closest_cluster):
         print '{0} cluster: {1}'.format(color, mean)
         plot.plot(*mean, color = color, marker = 'v')
         for sr in sres:
-            plot.plot(sr[-2], sr[-1] / now, color = color, marker = 'o')
+            plot.plot(*make_vector(sr[-2], sr[-1]), color = color, marker = 'o')
 
     plot.title('Clusters for host')
     plot.xlabel('hits')
