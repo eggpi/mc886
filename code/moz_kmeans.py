@@ -163,11 +163,9 @@ def predict_for_page_load(uri, pages, clusters_for_hosts, hosts):
             closest, mindist = i, d
 
     sres = clusters[closest][1]
-    visualize(page, clusters, closest)
+    return closest, clusters, sres
 
-    return sres
-
-def visualize(page, clusters, closest_cluster):
+def visualize(page, clusters, closest_cluster, explicit_sres):
     colors = [
         'black',
         'yellow',
@@ -203,6 +201,11 @@ def visualize(page, clusters, closest_cluster):
     plot.xlabel('hits')
     plot.ylabel('normalized timestamp')
 
+    for sr in explicit_sres:
+        plot.plot(*make_vector(sr[-2], sr[-1]), color = 'pink', marker = 'o')
+
+    plot.show()
+
 if __name__ == "__main__":
     import sys
 
@@ -212,10 +215,14 @@ if __name__ == "__main__":
     page = find_page_by_uri(sys.argv[2], pages)
     explicit_sres = [sr for sr in subresources if sr[1] == page[0]]
 
-    predicted_sres = predict_for_page_load(sys.argv[2], pages, clusters_for_hosts, hosts)
+    cidx, c, predicted_sres = \
+        predict_for_page_load(sys.argv[2], pages, clusters_for_hosts, hosts)
 
     print 'Would take predictive actions for {0} items, ' \
           'out of which {1} were explicitly loaded last time, ' \
           'and the page loaded a total of {2} subresources' \
-          .format(len(predicted_sres), len(set(predicted_sres) & set(explicit_sres)), len(explicit_sres))
-    plot.show()
+          .format(len(predicted_sres),
+                  len(set(predicted_sres) & set(explicit_sres)),
+                  len(explicit_sres))
+
+    visualize(page, c, cidx, explicit_sres)
