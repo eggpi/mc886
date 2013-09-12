@@ -31,6 +31,7 @@ Unanswered questions:
       _loads_ instead of subresources?
     - What to do with anomalous subresources that are loaded 58 times for a
       single page load? e.g.: http://i1.ytimg.com/vi/ylWORyToTo4/default.jpg
+    - Maybe use subresource hits / all page hits to also get global importance?
 '''
 
 ONE_MINUTE = 60 * 1e6
