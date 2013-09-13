@@ -65,7 +65,7 @@ def make_vector_for_subresource(accesses):
         if most_recent_hit < last_hit:
             most_recent_hit = last_hit
 
-    hits_per_page_hit = min(1.0, total_hits / page_hits)
+    hits_per_page_hit = min(1.0, total_hits / (1.0 + page_hits))
     return (hits_per_page_hit, normalize_timestamp(most_recent_hit))
 
 def make_vector_for_page(page):
@@ -158,7 +158,7 @@ def predict_for_page_load(db, page, clusters_for_hosts):
     sres = clusters[closest][1]
     return closest, clusters, [sr[0] for sr in sres]
 
-def visualize(page, clusters, closest_cluster):
+def visualize(clusters, closest_cluster):
     colors = [
         'black',
         'yellow',
@@ -170,20 +170,6 @@ def visualize(page, clusters, closest_cluster):
     ]
 
     assert len(colors) >= K - 1
-
-    #page_coords = make_vector_for_page(page)
-
-    #print 'Page is at: {0}'.format(page_coords)
-    #plot.plot(*page_coords, color = 'brown', marker = '^')
-    #plot.annotate('loaded page', xy = page_coords,
-    #              textcoords = 'axes fraction',
-    #              xytext = (0.2, 0.8),
-    #              arrowprops = {
-    #                  'facecolor': 'black',
-    #                  'shrink': 0.04,
-    #                  'width': 1,
-    #                  'headwidth': 10
-    #              })
 
     for cidx, (mean, sres) in enumerate(clusters):
         color = 'red' if cidx == closest_cluster else colors.pop(0)
@@ -225,4 +211,4 @@ if __name__ == "__main__":
                   len(set(predicted_sres) & set(explicit_sres)),
                   len(explicit_sres))
 
-    visualize(page, c, cidx)
+    visualize(c, cidx)
