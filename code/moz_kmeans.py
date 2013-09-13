@@ -64,9 +64,6 @@ def make_vector_for_subresource(accesses):
     hits_per_page_hit = min(1.0, total_hits / (1.0 + page_hits))
     return (hits_per_page_hit, normalize_timestamp(most_recent_hit))
 
-def make_vector_for_page(page):
-    return (page[2], normalize_timestamp(page[3]))
-
 def get_host_for_uri(uri):
     parts = urlparse.urlparse(uri)
     return parts.scheme + '://' + parts.netloc
