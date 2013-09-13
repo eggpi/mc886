@@ -1,20 +1,9 @@
-Histogram to determine K
-SVM scaling
-Online k-means
-Pagerank?
-What happens with resources that are shared among lots of pages?
-    - They will float to the second quadrant and might form a cluster
-      of their own, what to do with them?
-    - On the other hand, it's pretty obvious they are "hot" resources,
-      so it could be worth it to just predict them always anyway
-When we update a subresource, how to remove it from on-line k-means?
-
-Timestamp:
-    - Use timestamp long in the future?
-    - Use number of weeks/days/hours since epoch?
-    - Normalize using current time? (current - timestamp) / hours?
-    - Decompose timestamp in number of days, hours and minutes?
-
 youtube.seer.sqlite has some problems with pages: though I accessed youtube.com/
 and not www.youtube.com/, all subresources point to www.youtube.com. So
 www.youtube.com/ is not in moz_pages, and youtube.com is not in the hosts.
+
+- Fix histograms
+- Calculate dispersion and find K
+- New subresources start at the upper right cluster, which tends to get big. Do
+  we want that? Maybe use number of pages as a feature as well?
+- Give some examples for each cluster.
