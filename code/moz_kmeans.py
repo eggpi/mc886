@@ -39,10 +39,6 @@ ONE_HOUR = 60 * ONE_MINUTE
 ONE_DAY = 24 * ONE_HOUR
 ONE_WEEK = 7L * ONE_DAY
 
-# FIXME needs tweaking, but using 7 b/c we're normalizing using days
-# and expect the clusters to change over a week
-K = 5
-
 EPOCH = datetime(1970, 1, 1)
 SHIFTED_EPOCH = datetime.now() - relativedelta(weeks = 2)
 END_OF_THE_WORLD = datetime.now()
@@ -75,7 +71,7 @@ def get_host_for_uri(uri):
     parts = urlparse.urlparse(uri)
     return parts.scheme + '://' + parts.netloc
 
-def cluster_subresources_for_hosts(db):
+def cluster_subresources_for_hosts(k, db):
     '''
     Cluster the subresources loaded by all pages under
     a single host using their hit rate and timestamp.
@@ -102,18 +98,22 @@ def cluster_subresources_for_hosts(db):
             subresources_for_host[host][uri].append((pid, page_loads, last_hit, hits))
 
     clusters_for_hosts = {}
+    distortions = {}
     for host, host_sres in subresources_for_host.items():
-        if len(host_sres) > K:
+        if len(host_sres) > k:
             sres_vectors = np.array(
                 [make_vector_for_subresource(accesses) for accesses in host_sres.values()],
                 dtype = 'float32')
 
-            retval, clusters, means = cv2.kmeans(
+            distortion, clusters, means = cv2.kmeans(
                 sres_vectors,
-                K = K,
+                K = k,
                 criteria = (cv2.TERM_CRITERIA_MAX_ITER, 10, 0), # 10 iterations
                 attempts = 5,
                 flags = cv2.KMEANS_RANDOM_CENTERS)
+
+            print 'Distortion for host {} is {}'.format(host, distortion)
+            distortions[host] = distortion
 
             # transform clusters into list of tuples:
             # [ (mean, [list of subresources for cluster 0]),
@@ -131,7 +131,7 @@ def cluster_subresources_for_hosts(db):
             # FIXME figure this out
             pass
 
-    return clusters_for_hosts
+    return clusters_for_hosts, distortions
 
 def predict_for_page_load(db, page, clusters_for_hosts):
     cursor = db.cursor()
@@ -191,8 +191,9 @@ if __name__ == "__main__":
     dbfile = sys.argv[1]
     page_uri = sys.argv[2]
 
+    k = 6
     with sqlite3.connect(dbfile) as db:
-        clusters_for_hosts = cluster_subresources_for_hosts(db)
+        clusters_for_hosts, distortions = cluster_subresources_for_hosts(k, db)
 
         cursor = db.cursor()
         cursor.execute('select * from moz_pages where uri = ?', (page_uri,))
