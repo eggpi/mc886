@@ -156,30 +156,45 @@ def predict_for_page_load(db, page, clusters_for_hosts):
     print 'Correspondence: {}'.format(best_correspondence)
 
     sres = clusters[closest][1]
-    return closest, clusters, [sr[0] for sr in sres]
+    return closest, clusters, [sr[0] for sr in sres], sres_from_last_time
 
-def visualize(clusters, closest_cluster):
+def visualize(clusters, closest_cluster, explicit_sres):
     colors = [
         'black',
         'yellow',
         'green',
         'blue',
         'pink',
-        'grey',
-        'orange'
+        'grey'
     ]
 
-    assert len(colors) >= K - 1
+    assert len(colors) >= len(clusters) - 1
 
     for cidx, (mean, sres) in enumerate(clusters):
         color = 'red' if cidx == closest_cluster else colors.pop(0)
 
+        plot.subplot(211)
         print '{0} cluster: {1}'.format(color, mean)
         plot.plot(*mean, color = color, marker = 'v')
-        for uri, accesses in sres:
-            plot.plot(*make_vector_for_subresource(accesses), color = color, marker = 'o')
 
+        for uri, accesses in sres:
+            if uri in explicit_sres:
+                plot.subplot(212)
+                plot.plot(*make_vector_for_subresource(accesses),
+                          color = 'black' if uri not in predicted_sres else 'red',
+                          marker = 'o')
+
+            plot.subplot(211)
+            plot.plot(*make_vector_for_subresource(accesses),
+                      color = color, marker = 'o')
+
+    plot.subplot(211)
     plot.title('Clusters for host')
+    plot.xlabel('hits per page load')
+    plot.ylabel('normalized timestamp')
+
+    plot.subplot(212)
+    plot.title('Subresources from last load')
     plot.xlabel('hits per page load')
     plot.ylabel('normalized timestamp')
 
@@ -199,17 +214,14 @@ if __name__ == "__main__":
         cursor.execute('select * from moz_pages where uri = ?', (page_uri,))
         page = cursor.fetchone()
 
-        cursor.execute('select uri from moz_subresources where pid = ?', (page[0],))
-        explicit_sres = [s[0] for s in cursor.fetchall()]
-
-        cidx, c, predicted_sres = \
+        cidx, c, predicted_sres, explicit_sres = \
             predict_for_page_load(db, page, clusters_for_hosts)
 
     print 'Would take predictive actions for {0} items, ' \
-          'out of which {1} were explicitly loaded in the past, ' \
-          'and the page loaded a total of {2} subresources in the past' \
+          'out of which {1} were explicitly loaded last time, ' \
+          'and the page loaded a total of {2} subresources last time' \
           .format(len(predicted_sres),
                   len(set(predicted_sres) & set(explicit_sres)),
                   len(explicit_sres))
 
-    visualize(c, cidx)
+    visualize(c, cidx, explicit_sres)
