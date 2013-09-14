@@ -178,8 +178,7 @@ def visualize(clusters, closest_cluster, explicit_sres):
             if uri in explicit_sres:
                 plot.subplot(212)
                 plot.plot(*make_vector_for_subresource(accesses),
-                          color = 'black' if uri not in predicted_sres else 'red',
-                          marker = 'o')
+                          color = color, marker = 'o')
 
             plot.subplot(211)
             plot.plot(*make_vector_for_subresource(accesses),
