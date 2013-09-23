@@ -181,8 +181,7 @@ Notice how its subresources "floated down" in the graph as they got older and
 were not shared by other pages. I expect subresources to float to the bottom
 left as they lose importance.
 
-Feel free to poke around with the other pages in the database; I'm fully aware
-of how poor my musical taste is.
+Feel free to poke around with the other pages in the database.
 
 # Next steps
 
