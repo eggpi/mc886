@@ -221,7 +221,7 @@ def visualize(clusters, closest_cluster, predicted_sres, explicit_sres):
 
     for cidx, (mean, sres) in enumerate(clusters):
         if cidx == closest_cluster:
-            plot.subplot(313)
+            plot.subplot(223)
             for uri, accesses in sres:
                 if uri in predicted_sres:
                     color = 'red'
@@ -235,29 +235,35 @@ def visualize(clusters, closest_cluster, predicted_sres, explicit_sres):
 
         color = 'red' if cidx == closest_cluster else colors.pop(0)
 
-        plot.subplot(311)
+        plot.subplot(221)
         print '{0} cluster: {1}'.format(color, mean)
         plot.plot(*mean, color = color, marker = 'v')
 
         for uri, accesses in sres:
             if uri in explicit_sres:
-                plot.subplot(312)
+                plot.subplot(222)
                 plot.plot(*make_vector_for_subresource(accesses),
                           color = color, marker = 'o')
 
-            plot.subplot(311)
+            plot.subplot(221)
             plot.plot(*make_vector_for_subresource(accesses),
                       color = color, marker = 'o')
 
-    plot.subplot(311)
-    plot.title('Clusters for host')
+    plot.subplot(221)
+    plot.title('Clusters for host (red is the selected cluster)')
     plot.xlabel('hits per page load')
     plot.ylabel('normalized timestamp')
 
-    plot.subplot(312)
-    plot.title('Subresources from last load')
+    plot.subplot(222)
+    plot.title('Subresources from last load (colored by cluster)')
     plot.xlabel('hits per page load')
     plot.ylabel('normalized timestamp')
+
+    plot.subplot(223)
+    plot.title('Selected cluster (red are predicted subresources)')
+    plot.xlabel('hits per page load')
+    plot.ylabel('normalized timestamp')
+
 
     plot.show()
 
