@@ -75,6 +75,8 @@ def cluster_subresources_for_hosts(k, db):
     a single host using their hit rate and timestamp.
     '''
 
+    subk = k
+
     # A dictionary mapping hosts to subresource loads by pages under that
     # host. Each subresource load is in turn represented by a dictionary mapping
     # the subresource's url to a list of tuples (page id, last_hit, hits)
@@ -96,6 +98,7 @@ def cluster_subresources_for_hosts(k, db):
             subresources_for_host[host][uri].append((pid, page_loads, last_hit, hits))
 
     clusters_for_hosts = {}
+    subclusters_for_clusters = {} # host -> cluster -> list of uris
     distortions = {}
     for host, host_sres in subresources_for_host.items():
         if len(host_sres) > k:
@@ -128,13 +131,45 @@ def cluster_subresources_for_hosts(k, db):
                 assert c.shape == (1,)
                 c = c[0]
                 clusters_for_hosts[host][c][1].append((uri, accesses))
+
+            # compute subclusters for each cluster
+            subclusters_for_clusters[host] = {}
+            for c, (mean, sres) in enumerate(clusters_for_hosts[host]):
+                if len(sres) <= subk:
+                    continue
+
+                cluster_sres_vectors = np.array(
+                    [make_vector_for_subresource(acs) for uri, acs in sres],
+                    dtype = 'float32')
+
+                _, subcl, means = cv2.kmeans(
+                    cluster_sres_vectors,
+                    K = subk,
+                    criteria = (cv2.TERM_CRITERIA_MAX_ITER, 100, 0), # 10 iterations
+                    attempts = 20,
+                    flags = cv2.KMEANS_RANDOM_CENTERS)
+
+                subclusters_for_clusters[host][c] = []
+                for mean in means:
+                    subclusters_for_clusters[host][c].append((mean, []))
+
+                for sc, (uri, accesses) in zip(subcl, sres):
+                    assert sc.shape == (1,)
+                    sc = sc[0]
+                    subclusters_for_clusters[host][c][sc][1].append(uri)
+
+                cluster_size = len(clusters_for_hosts[host][c][1])
+                subcluster_sizes = map(len, (subclusters_for_clusters[host][c][sc][1] for sc in range(subk)))
+                assert cluster_size == sum(subcluster_sizes)
+
+                print cluster_size, subcluster_sizes
         else:
             # FIXME figure this out
             pass
 
-    return clusters_for_hosts, distortions
+    return clusters_for_hosts, subclusters_for_clusters, distortions
 
-def predict_for_page_load(db, page, clusters_for_hosts):
+def predict_for_page_load(db, page, clusters_for_hosts, subclusters_for_clusters):
     cursor = db.cursor()
     cursor.execute(
         'select uri from moz_subresources where pid = ? and last_hit > ?',
@@ -143,21 +178,34 @@ def predict_for_page_load(db, page, clusters_for_hosts):
     sres_from_last_time = set(sr[0] for sr in cursor.fetchall())
     host = get_host_for_uri(page[1])
     clusters = clusters_for_hosts[host]
+    subclusters = subclusters_for_clusters[host]
 
-    best_correspondence = 0
+    best_correspondence = set()
     for i, (mean, subresources) in enumerate(clusters):
         in_cluster = set((uri for uri, accesses in subresources))
-        correspondence = len(sres_from_last_time & in_cluster)
+        correspondence = sres_from_last_time & in_cluster
 
-        if correspondence > best_correspondence:
+        if len(correspondence) > len(best_correspondence):
             best_correspondence = correspondence
             closest = i
 
-    print 'Cluster sizes: {}'.format([len(c[1]) for c in clusters])
-    print 'Correspondence: {}'.format(best_correspondence)
+    print 'Cluster size: {}'.format(len(clusters[closest][1]))
+    print 'Correspondence: {}'.format(len(best_correspondence))
 
     sres = clusters[closest][1]
-    return closest, clusters, [sr[0] for sr in sres], sres_from_last_time
+    subclusters = subclusters[closest]
+
+    # pick enough subclusters to cover sres_from_last_time
+    predicted_sres = set()
+    for sruri in best_correspondence:
+        for mean, uris in subclusters:
+            if sruri in uris:
+                predicted_sres = predicted_sres.union(uris)
+                break
+        else:
+            assert False
+
+    return closest, clusters, predicted_sres, sres_from_last_time
 
 def visualize(clusters, closest_cluster, explicit_sres):
     colors = [
@@ -208,14 +256,14 @@ if __name__ == "__main__":
 
     k = 6
     with sqlite3.connect(dbfile) as db:
-        clusters_for_hosts, distortions = cluster_subresources_for_hosts(k, db)
+        clusters_for_hosts, subclusters_for_clusters, distortions = cluster_subresources_for_hosts(k, db)
 
         cursor = db.cursor()
         cursor.execute('select * from moz_pages where uri = ?', (page_uri,))
         page = cursor.fetchone()
 
         cidx, c, predicted_sres, explicit_sres = \
-            predict_for_page_load(db, page, clusters_for_hosts)
+            predict_for_page_load(db, page, clusters_for_hosts, subclusters_for_clusters)
 
     print 'Would take predictive actions for {0} items, ' \
           'out of which {1} were explicitly loaded last time, ' \
