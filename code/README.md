@@ -146,7 +146,7 @@ and copying the sqlite database from the profile directory. This database is at
 `youtube.seer.sqlite` in this repository.
 
 The script `moz_kmeans.py` implements the algorithm described in this document.
-It a relative hit rate bias of 1.0, and hierarchical clustering with k = 6. Be
+It uses a relative hit rate bias of 1.0, and hierarchical clustering with k = 6. Be
 advised that the code, having been through constant change in the past weeks,
 is... disorganized, to say the least. Its dependencies are opencv (for their
 k-means implementation), matplotlib and numpy.
