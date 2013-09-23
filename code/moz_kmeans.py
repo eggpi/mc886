@@ -108,8 +108,8 @@ def cluster_subresources_for_hosts(k, db):
             distortion, clusters, means = cv2.kmeans(
                 sres_vectors,
                 K = k,
-                criteria = (cv2.TERM_CRITERIA_MAX_ITER, 10, 0), # 10 iterations
-                attempts = 5,
+                criteria = (cv2.TERM_CRITERIA_MAX_ITER, 100, 0), # 100 iterations
+                attempts = 20,
                 flags = cv2.KMEANS_RANDOM_CENTERS)
 
             print 'Distortion for host {} is {}'.format(host, distortion)
