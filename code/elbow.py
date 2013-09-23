@@ -12,7 +12,7 @@ if __name__ == '__main__':
     distortions = []
     with sqlite3.connect(dbfile) as db:
         for k in krange:
-            _, d = cluster_subresources_for_hosts(k, db)
+            _, _, d = cluster_subresources_for_hosts(k, db)
             distortions.append(d[host])
 
         plot.plot(krange, distortions, 'b-')
