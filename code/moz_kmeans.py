@@ -40,7 +40,8 @@ ONE_DAY = 24 * ONE_HOUR
 ONE_WEEK = 7L * ONE_DAY
 
 EPOCH = datetime(1970, 1, 1)
-SHIFTED_EPOCH = datetime.now() - relativedelta(weeks = 2)
+NOW = datetime(2013, 9, 21, 0, 0, 0, 0) # datetime.now()
+SHIFTED_EPOCH =  NOW - relativedelta(weeks = 2)
 END_OF_THE_WORLD = datetime.now()
 
 SHIFTED_EPOCH_US = 1e6 * (SHIFTED_EPOCH - EPOCH).total_seconds()
