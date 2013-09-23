@@ -135,8 +135,59 @@ enough subclusters to cover the set of subresources needed by the page.
 This seems to reduce the number of subresources selected for predictive actions
 by about half, but I still need to experiment with it some more.
 
-# Some results
+# What it looks like
 
-# See it work (hopefully)
+I've been casually gathering data by watching YouTube videos for the past weeks.
+I'm not totally convinced YouTube is the best site to be gathering data at,
+since video pages tend to be very different from one another, but it's a start.
 
-# Roadmap
+This data was collected simply by running Firefox with the Seer patches applied
+and copying the sqlite database from the profile directory. This database is at
+`youtube.seer.sqlite` in this repository.
+
+The script `moz_kmeans.py` implements the algorithm described in this document.
+It a relative hit rate bias of 1.0, and hierarchical clustering with k = 6. Be
+advised that the code, having been through constant change in the past weeks,
+is... disorganized, to say the least. Its dependencies are opencv (for their
+k-means implementation), matplotlib and numpy.
+
+You can run it with:
+
+`python moz_kmeans.py youtube.seer.sqlite <some page in the database>`
+
+to simulate accessing that page. It should output some statistics and display a
+few graphics displaying the clusters and the subresources that were predicted.
+
+For example, this is what happens when you use page
+<http://www.youtube.com/watch?v=Q8Tiz6INF7I>, which I only visited once, but was
+the last one I visited:
+
+![http://www.youtube.com/watch?v=Q8Tiz6INF7I](img/new.png)
+
+Notice how, in the top leftmost graph, its subresources are fresh (high
+timestamp) but, because of the bias, have only an average relative hit rate.
+
+For this particular run (results may vary a little because k-means is not
+deterministic), the selected cluster had 1224 subresources and contained 60
+out of the 85 subresources the page loaded last time. Using hierarchical
+clustering, we were able to narrow the number of subresources to predict down to
+479. These statistics are printed to the terminal.
+
+This is what happens with the oldest page in the dataset:
+
+![http://www.youtube.com/watch?v=jJj0FAUcqj4](img/old.png)
+
+Notice how its subresources "floated down" in the graph as they got older and
+were not shared by other pages. I expect subresources to float to the bottom
+left as they lose importance.
+
+Feel free to poke around with the other pages in the database; I'm fully aware
+of how poor my musical taste is.
+
+# Next steps
+
+I still need to iron out the unanswered questions I documented here, and after
+that I'd like to start working on some tentative patches for the browser.
+
+I'm very open to any feedback, of course, and there's still time to change the
+algorithm significantly if necessary.
