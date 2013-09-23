@@ -207,7 +207,7 @@ def predict_for_page_load(db, page, clusters_for_hosts, subclusters_for_clusters
 
     return closest, clusters, predicted_sres, sres_from_last_time
 
-def visualize(clusters, closest_cluster, explicit_sres):
+def visualize(clusters, closest_cluster, predicted_sres, explicit_sres):
     colors = [
         'black',
         'yellow',
@@ -220,28 +220,41 @@ def visualize(clusters, closest_cluster, explicit_sres):
     assert len(colors) >= len(clusters) - 1
 
     for cidx, (mean, sres) in enumerate(clusters):
+        if cidx == closest_cluster:
+            plot.subplot(313)
+            for uri, accesses in sres:
+                if uri in predicted_sres:
+                    color = 'red'
+                elif uri in explicit_sres:
+                    color = 'orange'
+                else:
+                    color = 'black'
+
+                plot.plot(*make_vector_for_subresource(accesses),
+                          color = color, marker = 'o')
+
         color = 'red' if cidx == closest_cluster else colors.pop(0)
 
-        plot.subplot(211)
+        plot.subplot(311)
         print '{0} cluster: {1}'.format(color, mean)
         plot.plot(*mean, color = color, marker = 'v')
 
         for uri, accesses in sres:
             if uri in explicit_sres:
-                plot.subplot(212)
+                plot.subplot(312)
                 plot.plot(*make_vector_for_subresource(accesses),
                           color = color, marker = 'o')
 
-            plot.subplot(211)
+            plot.subplot(311)
             plot.plot(*make_vector_for_subresource(accesses),
                       color = color, marker = 'o')
 
-    plot.subplot(211)
+    plot.subplot(311)
     plot.title('Clusters for host')
     plot.xlabel('hits per page load')
     plot.ylabel('normalized timestamp')
 
-    plot.subplot(212)
+    plot.subplot(312)
     plot.title('Subresources from last load')
     plot.xlabel('hits per page load')
     plot.ylabel('normalized timestamp')
@@ -272,4 +285,4 @@ if __name__ == "__main__":
                   len(set(predicted_sres) & set(explicit_sres)),
                   len(explicit_sres))
 
-    visualize(c, cidx, explicit_sres)
+    visualize(c, cidx, predicted_sres, explicit_sres)
