@@ -99,8 +99,10 @@ def cluster_subresources_for_hosts(k, db):
     distortions = {}
     for host, host_sres in subresources_for_host.items():
         if len(host_sres) > k:
+            sres_uris = host_sres.keys()
+            sres_accesses = [host_sres[uri] for uri in sres_uris]
             sres_vectors = np.array(
-                [make_vector_for_subresource(accesses) for accesses in host_sres.values()],
+                [make_vector_for_subresource(acs) for acs in sres_accesses],
                 dtype = 'float32')
 
             distortion, clusters, means = cv2.kmeans(
@@ -121,10 +123,11 @@ def cluster_subresources_for_hosts(k, db):
             for mean in means:
                 clusters_for_hosts[host].append((mean, []))
 
-            for c, sres in zip(clusters, host_sres.items()):
+            assert len(clusters) == len(sres_uris)
+            for c, uri, accesses in zip(clusters, sres_uris, sres_accesses):
                 assert c.shape == (1,)
                 c = c[0]
-                clusters_for_hosts[host][c][1].append(sres)
+                clusters_for_hosts[host][c][1].append((uri, accesses))
         else:
             # FIXME figure this out
             pass
