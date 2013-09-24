@@ -2,7 +2,7 @@ import time
 import pprint
 import sqlite3
 from urllib2 import urlparse
-from collections import defaultdict
+from collections import defaultdict, Counter
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 
@@ -51,7 +51,8 @@ def normalize_timestamp(timestamp):
     return (timestamp - SHIFTED_EPOCH_US) / \
            (END_OF_THE_WORLD_US - SHIFTED_EPOCH_US)
 
-def make_vector_for_subresource(accesses):
+bias_for_host = {}
+def make_vector_for_subresource(host, accesses):
     total_hits = 0.0
     page_hits = 0.0
     most_recent_hit = float('-inf')
@@ -62,7 +63,7 @@ def make_vector_for_subresource(accesses):
         if most_recent_hit < last_hit:
             most_recent_hit = last_hit
 
-    hits_per_page_hit = min(1.0, total_hits / (1.0 + page_hits))
+    hits_per_page_hit = min(1.0, total_hits / (bias_for_host[host] + page_hits))
     return (hits_per_page_hit, normalize_timestamp(most_recent_hit))
 
 def get_host_for_uri(uri):
@@ -83,6 +84,8 @@ def cluster_subresources_for_hosts(k, db):
     subresources_for_host = defaultdict()
     subresources_for_host.default_factory = lambda: defaultdict(list)
 
+    page_hits_for_host = defaultdict(Counter)
+
     cursor = db.cursor()
     cursor.execute('select id, uri, loads from moz_pages')
     for pid, uri, page_loads in cursor.fetchall():
@@ -95,7 +98,14 @@ def cluster_subresources_for_hosts(k, db):
             (pid,))
 
         for uri, last_hit, hits in cursor:
+            page_hits_for_host[host][page_loads] += 1
             subresources_for_host[host][uri].append((pid, page_loads, last_hit, hits))
+
+    global bias_for_host
+    for host, counter in page_hits_for_host.items():
+        bias, count = counter.most_common()[0]
+        bias_for_host[host] = bias
+        print 'Bias for {} is {}'.format(host, bias_for_host[host])
 
     clusters_for_hosts = {}
     subclusters_for_clusters = {} # host -> cluster -> list of uris
@@ -105,7 +115,8 @@ def cluster_subresources_for_hosts(k, db):
             sres_uris = host_sres.keys()
             sres_accesses = [host_sres[uri] for uri in sres_uris]
             sres_vectors = np.array(
-                [make_vector_for_subresource(acs) for acs in sres_accesses],
+                [make_vector_for_subresource(host, acs)
+                 for uri, acs in zip(sres_uris, sres_accesses)],
                 dtype = 'float32')
 
             distortion, clusters, means = cv2.kmeans(
@@ -139,7 +150,7 @@ def cluster_subresources_for_hosts(k, db):
                     continue
 
                 cluster_sres_vectors = np.array(
-                    [make_vector_for_subresource(acs) for uri, acs in sres],
+                    [make_vector_for_subresource(host, acs) for uri, acs in sres],
                     dtype = 'float32')
 
                 _, subcl, means = cv2.kmeans(
@@ -207,7 +218,7 @@ def predict_for_page_load(db, page, clusters_for_hosts, subclusters_for_clusters
 
     return closest, clusters, predicted_sres, sres_from_last_time
 
-def visualize(clusters, closest_cluster, predicted_sres, explicit_sres):
+def visualize(clusters, host, closest_cluster, predicted_sres, explicit_sres):
     colors = [
         'black',
         'yellow',
@@ -230,7 +241,7 @@ def visualize(clusters, closest_cluster, predicted_sres, explicit_sres):
                 else:
                     color = 'black'
 
-                plot.plot(*make_vector_for_subresource(accesses),
+                plot.plot(*make_vector_for_subresource(host, accesses),
                           color = color, marker = 'o')
 
         color = 'red' if cidx == closest_cluster else colors.pop(0)
@@ -247,11 +258,11 @@ def visualize(clusters, closest_cluster, predicted_sres, explicit_sres):
 
             if uri in explicit_sres:
                 plot.subplot(222)
-                plot.plot(*make_vector_for_subresource(accesses),
+                plot.plot(*make_vector_for_subresource(host, accesses),
                           color = color, marker = 'o')
 
             plot.subplot(221)
-            plot.plot(*make_vector_for_subresource(accesses),
+            plot.plot(*make_vector_for_subresource(host, accesses),
                       color = color, marker = 'o')
 
     plot.subplot(221)
@@ -296,4 +307,4 @@ if __name__ == "__main__":
                   len(set(predicted_sres) & set(explicit_sres)),
                   len(explicit_sres))
 
-    visualize(c, cidx, predicted_sres, explicit_sres)
+    visualize(c, get_host_for_uri(page_uri), cidx, predicted_sres, explicit_sres)
