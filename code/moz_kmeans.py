@@ -239,7 +239,12 @@ def visualize(clusters, closest_cluster, predicted_sres, explicit_sres):
         print '{0} cluster: {1}'.format(color, mean)
         plot.plot(*mean, color = color, marker = 'v')
 
+        examples = 3
         for uri, accesses in sres:
+            if examples > 0 and len(uri) < 80:
+                examples -= 1
+                print '    {}'.format(uri)
+
             if uri in explicit_sres:
                 plot.subplot(222)
                 plot.plot(*make_vector_for_subresource(accesses),
