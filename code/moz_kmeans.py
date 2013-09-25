@@ -91,6 +91,7 @@ def cluster_subresources_for_hosts(k, db):
     for pid, uri, page_loads in cursor.fetchall():
         # find host for each page
         host = get_host_for_uri(uri)
+        page_hits_for_host[host][page_loads] += 1
 
         # find the subresources loaded by the page
         cursor.execute(
@@ -98,7 +99,6 @@ def cluster_subresources_for_hosts(k, db):
             (pid,))
 
         for uri, last_hit, hits in cursor:
-            page_hits_for_host[host][page_loads] += 1
             subresources_for_host[host][uri].append((pid, page_loads, last_hit, hits))
 
     global bias_for_host
