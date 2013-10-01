@@ -203,18 +203,25 @@ def predict_for_page_load(db, page, clusters_for_hosts, subclusters_for_clusters
     print 'Cluster size: {}'.format(len(clusters[closest][1]))
     print 'Correspondence: {}'.format(len(best_correspondence))
 
-    sres = clusters[closest][1]
     subclusters = subclusters[closest]
 
-    # pick enough subclusters to cover sres_from_last_time
     predicted_sres = set()
-    for sruri in best_correspondence:
-        for mean, uris in subclusters:
-            if sruri in uris:
-                predicted_sres = predicted_sres.union(uris)
-                break
+    corresponded_and_picked = 0
+    min_corresponded_picked = 0.5 * len(best_correspondence)
+    max_predicted_size = 2 * len(best_correspondence)
+    for mean, uris in subclusters:
+        corresponded_in_subcluster = len(set(uris) & best_correspondence)
+        if not corresponded_in_subcluster:
+            continue
+
+        too_big = len(predicted_sres) + len(uris) > max_predicted_size
+        has_min_picked = corresponded_and_picked >= min_corresponded_picked
+
+        if not has_min_picked or not too_big:
+            predicted_sres = predicted_sres.union(uris)
+            corresponded_and_picked += corresponded_in_subcluster
         else:
-            assert False
+            break
 
     return closest, clusters, predicted_sres, sres_from_last_time
 
