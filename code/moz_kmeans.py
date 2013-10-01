@@ -232,7 +232,8 @@ def visualize(clusters, host, closest_cluster, predicted_sres, explicit_sres):
         'green',
         'blue',
         'pink',
-        'grey'
+        'grey',
+        'orange'
     ]
 
     assert len(colors) >= len(clusters) - 1
@@ -296,7 +297,7 @@ if __name__ == "__main__":
     dbfile = sys.argv[1]
     page_uri = sys.argv[2]
 
-    k = 6
+    k = 8
     with sqlite3.connect(dbfile) as db:
         clusters_for_hosts, subclusters_for_clusters, distortions = cluster_subresources_for_hosts(k, db)
 

@@ -8,7 +8,7 @@ if __name__ == '__main__':
     dbfile = sys.argv[1]
     host = sys.argv[2]
 
-    krange = range(1, 20)
+    krange = range(2, 50)
     distortions = []
     with sqlite3.connect(dbfile) as db:
         for k in krange:
