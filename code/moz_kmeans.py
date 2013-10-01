@@ -201,6 +201,9 @@ def predict_for_page_load(db, page, clusters_for_hosts, subclusters_for_clusters
             best_correspondence = correspondence
             closest = i
 
+    if len(best_correspondence) == 0:
+        return None
+
     print 'Cluster size: {}'.format(len(clusters[closest][1]))
     print 'Correspondence: {}'.format(len(best_correspondence))
 
