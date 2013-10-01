@@ -34,6 +34,7 @@ Unanswered questions:
     - Maybe use subresource hits / all page hits to also get global importance?
 '''
 
+K = 8
 ONE_MINUTE = 60 * 1e6
 ONE_HOUR = 60 * ONE_MINUTE
 ONE_DAY = 24 * ONE_HOUR
@@ -297,9 +298,8 @@ if __name__ == "__main__":
     dbfile = sys.argv[1]
     page_uri = sys.argv[2]
 
-    k = 8
     with sqlite3.connect(dbfile) as db:
-        clusters_for_hosts, subclusters_for_clusters, distortions = cluster_subresources_for_hosts(k, db)
+        clusters_for_hosts, subclusters_for_clusters, distortions = cluster_subresources_for_hosts(K, db)
 
         cursor = db.cursor()
         cursor.execute('select * from moz_pages where uri = ?', (page_uri,))
