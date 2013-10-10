@@ -314,11 +314,14 @@ if __name__ == "__main__":
     explicit = page.get_resources_from_last_load()
     closest, predicted = predict_for_page_load(page, hindex)
 
-    print 'Would take predictive actions for {0} items, ' \
+    explicit_predicted = set(predicted) & set(explicit)
+    print 'Would take predictive actions for {0} resources, ' \
           'out of which {1} were explicitly loaded last time, ' \
-          'and the page loaded a total of {2} subresources last time' \
+          'and the page loaded a total of {2} resources last time ' \
+          '(so {3:.2f}% of explicit resources were predicted)' \
           .format(len(predicted),
-                  len(set(predicted) & set(explicit)),
-                  len(explicit))
+                  len(explicit_predicted),
+                  len(explicit),
+                  (100.0 * len(explicit_predicted)) / len(explicit))
 
     visualize(host, closest, predicted, explicit)
