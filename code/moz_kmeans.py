@@ -10,192 +10,187 @@ import cv2
 import numpy as np
 import matplotlib.pyplot as plot
 
-'''
-A sketch for prediction based on k-means.
-
-The basic idea is to use k-means to cluster subresources fetched by the
-pages under a domain based on their average hit rate per page load (the
-average number of times a subresource was loaded from each page that requested
-it), and the timestamp of the latest load of the subresource.
-
-The former should be a "relative" measure of relevance for a subresource -- how
-important it is for the pages that request it -- while the latter is a rough
-measure of "absolute" relevance -- how often it gets requested by any page.
-
-Whenever we want to make predictions for a page load, we use the cluster that
-contains more subresources that were recently requested by that page.
-
-Unanswered questions:
-    - How to pick a suitable K?
-    - As an alternative if this doesn't work, maybe we can cluster subresource
-      _loads_ instead of subresources?
-    - What to do with anomalous subresources that are loaded 58 times for a
-      single page load? e.g.: http://i1.ytimg.com/vi/ylWORyToTo4/default.jpg
-    - Maybe use subresource hits / all page hits to also get global importance?
-'''
-
-K = 8
-ONE_MINUTE = 60 * 1e6
-ONE_HOUR = 60 * ONE_MINUTE
-ONE_DAY = 24 * ONE_HOUR
-ONE_WEEK = 7L * ONE_DAY
-
+K = 10
 EPOCH = datetime(1970, 1, 1)
 NOW = datetime(2013, 9, 21, 0, 0, 0, 0) # datetime.now()
-SHIFTED_EPOCH =  NOW - relativedelta(weeks = 2)
-END_OF_THE_WORLD = datetime.now()
 
-SHIFTED_EPOCH_US = 1e6 * (SHIFTED_EPOCH - EPOCH).total_seconds()
-END_OF_THE_WORLD_US = 1e6 * (END_OF_THE_WORLD - EPOCH).total_seconds()
+WINDOW_START =  NOW - relativedelta(weeks = 2)
+WINDOW_START_US = 1e6 * (WINDOW_START - EPOCH).total_seconds()
 
-def normalize_timestamp(timestamp):
-    return (timestamp - SHIFTED_EPOCH_US) / \
-           (END_OF_THE_WORLD_US - SHIFTED_EPOCH_US)
-
-bias_for_host = {}
-def make_vector_for_subresource(host, accesses):
-    total_hits = 0.0
-    page_hits = 0.0
-    most_recent_hit = float('-inf')
-    for _, page_loads, last_hit, hits in accesses:
-        total_hits += hits
-        page_hits += page_loads
-
-        if most_recent_hit < last_hit:
-            most_recent_hit = last_hit
-
-    hits_per_page_hit = min(1.0, total_hits / (bias_for_host[host] + page_hits))
-    return (hits_per_page_hit, normalize_timestamp(most_recent_hit))
+WINDOW_END = NOW
+WINDOW_END_US = 1e6 * (WINDOW_END - EPOCH).total_seconds()
 
 def get_host_for_uri(uri):
     parts = urlparse.urlparse(uri)
     return parts.scheme + '://' + parts.netloc
 
-def cluster_subresources_for_hosts(k, db):
+def normalize_timestamp(timestamp):
+    return (timestamp - WINDOW_START_US) / (WINDOW_END_US - WINDOW_START_US)
+
+class Host(object):
+    def __init__(self, name):
+        self.name = name
+        self.pages = []
+        self.bias = 0.0
+        self.clusters = []
+        self.subclusters = []
+
+    def add_page(self, page):
+        self.pages.append(page)
+
+    def compute_bias(self):
+        page_hits = Counter(page.hits for page in self.pages)
+        self.bias, count = page_hits.most_common()[0]
+
+class Page(object):
+    def __init__(self, uri, hits, last_hit, resource_loads):
+        self.uri = uri
+        self.hits = hits
+        self.last_hit = last_hit
+        self.host = get_host_for_uri(self.uri)
+        self.resource_loads = resource_loads # (uri, hits, last_hit)
+
+    def get_resources_from_last_load(self):
+        return [uri
+                for uri, hits, last_hit in self.resource_loads
+                if last_hit >= self.last_hit]
+
+class Resource(object):
+    def __init__(self, uri):
+        self.uri = uri
+        # filter loads per host
+        self.loading_pages_per_host = defaultdict(list)
+
+    def add_loading_page(self, page, hits, last_hit):
+        # page must not exist yet
+        assert all(
+            page.uri != p.uri
+            for p, _, _ in self.loading_pages_per_host[page.host])
+
+        self.loading_pages_per_host[page.host].append((page, hits, last_hit))
+
+    def get_fv_for_host(self, host):
+        # find all loads by pages of this host
+        loads = self.loading_pages_per_host[host.name]
+
+        # use these loads to compute feature vector
+        total_hits = sum(hits for page, hits, last_hit in loads)
+        page_hits = sum(page.hits for page, hits, last_hit in loads)
+        last_hit = max(last_hit for page, hits, last_hit in loads)
+
+        sres_hits_per_page_hit = min(1.0, float(total_hits) / (host.bias + page_hits))
+        normalized_last_hit = normalize_timestamp(last_hit)
+        return (sres_hits_per_page_hit, normalized_last_hit)
+
+def load_database(db):
     '''
-    Cluster the subresources loaded by all pages under
-    a single host using their hit rate and timestamp.
+    Load data from the database. Returns the hosts, pages and resources in the
+    database as dictionaries keyed by their uris.
     '''
 
-    subk = k
-
-    # A dictionary mapping hosts to subresource loads by pages under that
-    # host. Each subresource load is in turn represented by a dictionary mapping
-    # the subresource's url to a list of tuples (page id, last_hit, hits)
-    subresources_for_host = defaultdict()
-    subresources_for_host.default_factory = lambda: defaultdict(list)
-
-    page_hits_for_host = defaultdict(Counter)
+    hosts = {}
+    pages = {}
+    resources = {}
 
     cursor = db.cursor()
-    cursor.execute('select id, uri, loads from moz_pages')
-    for pid, uri, page_loads in cursor.fetchall():
-        # find host for each page
-        host = get_host_for_uri(uri)
-        page_hits_for_host[host][page_loads] += 1
+    cursor.execute('select id, uri, loads, last_load from moz_pages')
+    for pid, puri, page_loads, last_load in cursor.fetchall():
+        # find host for each page, and create the
+        # corresponding object if necessary
+        huri = get_host_for_uri(puri)
+        host = hosts.setdefault(huri, Host(huri))
 
-        # find the subresources loaded by the page
+        # find the resources loads by the page
         cursor.execute(
-            'select uri, last_hit, hits from moz_subresources where pid = ?',
+            'select uri, hits, last_hit from moz_subresources where pid = ?',
             (pid,))
+        resource_loads_for_page = list(cursor)
 
-        for uri, last_hit, hits in cursor:
-            subresources_for_host[host][uri].append((pid, page_loads, last_hit, hits))
+        assert puri not in pages
+        page = Page(puri, page_loads, last_load, resource_loads_for_page)
+        pages[puri] = page
 
-    global bias_for_host
-    for host, counter in page_hits_for_host.items():
-        bias, count = counter.most_common()[0]
-        bias_for_host[host] = bias
-        print 'Bias for {} is {}'.format(host, bias_for_host[host])
+        for ruri, hits, last_hit in resource_loads_for_page:
+            resource = resources.setdefault(ruri, Resource(ruri))
+            resource.add_loading_page(page, hits, last_hit)
 
-    clusters_for_hosts = {}
-    subclusters_for_clusters = {} # host -> cluster -> list of uris
-    distortions = {}
-    for host, host_sres in subresources_for_host.items():
-        if len(host_sres) > k:
-            sres_uris = host_sres.keys()
-            sres_accesses = [host_sres[uri] for uri in sres_uris]
-            sres_vectors = np.array(
-                [make_vector_for_subresource(host, acs)
-                 for uri, acs in zip(sres_uris, sres_accesses)],
-                dtype = 'float32')
+        host.add_page(page)
 
-            distortion, clusters, means = cv2.kmeans(
-                sres_vectors,
-                K = k,
-                criteria = (cv2.TERM_CRITERIA_MAX_ITER, 100, 0), # 100 iterations
+    # compute the bias for each host
+    for host in hosts.values():
+        host.compute_bias()
+
+    return hosts, pages, resources
+
+def build_clusters(means, clusters, resources):
+    # transform clusters into a list of (mean, [resources])
+    cluster = map(lambda m: (tuple(m), []), means)
+    for c, r in zip(clusters, resources):
+        assert c.shape == (1,)
+        c = c[0]
+        cluster[c][1].append(r)
+    return cluster
+
+def cluster_resources_for_host(host, rindex, k = K, subk = K):
+    # find all resources needed by all pages under the host
+    host_ruris = set(
+        rl[0]
+        for page in host.pages
+        for rl in page.resource_loads
+    )
+
+    host_resources = [rindex[ruri] for ruri in host_ruris]
+    fvs = [r.get_fv_for_host(host) for r in host_resources]
+
+    kmeans_criteria = (cv2.TERM_CRITERIA_MAX_ITER, 100, 0) # 100 iterations
+
+    # top-level clustering
+    top_distortion, top_clusters, top_means = cv2.kmeans(
+        np.array(fvs, dtype = 'float32'),
+        K = k,
+        criteria = kmeans_criteria,
+        attempts = 20,
+        flags = cv2.KMEANS_RANDOM_CENTERS)
+
+    clusters = build_clusters(top_means, top_clusters, host_resources)
+
+    # subclusters
+    subclusters = []
+    if subk > 0:
+        for mean, cluster_resources in clusters:
+            fvs = [r.get_fv_for_host(host) for r in cluster_resources]
+
+            sub_distortion, sub_clusters, sub_means = cv2.kmeans(
+                np.array(fvs, dtype = 'float32'),
+                K = subk,
+                criteria = kmeans_criteria,
                 attempts = 20,
                 flags = cv2.KMEANS_RANDOM_CENTERS)
 
-            print 'Distortion for host {} is {}'.format(host, distortion)
-            distortions[host] = distortion
+            subclusters.append(
+                build_clusters(sub_means, sub_clusters, cluster_resources)
+            )
 
-            # transform clusters into list of tuples:
-            # [ (mean, [list of subresources for cluster 0]),
-            #   (mean, [list of subresources for cluster 1]), ...
-            # ]
-            clusters_for_hosts[host] = []
-            for mean in means:
-                clusters_for_hosts[host].append((mean, []))
+    host.clusters = clusters
+    host.subclusters = subclusters
+    return top_distortion
 
-            assert len(clusters) == len(sres_uris)
-            for c, uri, accesses in zip(clusters, sres_uris, sres_accesses):
-                assert c.shape == (1,)
-                c = c[0]
-                clusters_for_hosts[host][c][1].append((uri, accesses))
+def predict_for_page_load(page, hindex):
+    host = hindex[page.host]
 
-            # compute subclusters for each cluster
-            subclusters_for_clusters[host] = {}
-            for c, (mean, sres) in enumerate(clusters_for_hosts[host]):
-                if len(sres) <= subk:
-                    continue
+    for i, (mean, resources) in enumerate(host.clusters):
+        print '{} {}:'.format(mean, len(resources)),
+        for mean, resources in host.subclusters[i]:
+            print len(resources),
+        print
 
-                cluster_sres_vectors = np.array(
-                    [make_vector_for_subresource(host, acs) for uri, acs in sres],
-                    dtype = 'float32')
-
-                _, subcl, means = cv2.kmeans(
-                    cluster_sres_vectors,
-                    K = subk,
-                    criteria = (cv2.TERM_CRITERIA_MAX_ITER, 100, 0), # 10 iterations
-                    attempts = 20,
-                    flags = cv2.KMEANS_RANDOM_CENTERS)
-
-                subclusters_for_clusters[host][c] = []
-                for mean in means:
-                    subclusters_for_clusters[host][c].append((mean, []))
-
-                for sc, (uri, accesses) in zip(subcl, sres):
-                    assert sc.shape == (1,)
-                    sc = sc[0]
-                    subclusters_for_clusters[host][c][sc][1].append(uri)
-
-                cluster_size = len(clusters_for_hosts[host][c][1])
-                subcluster_sizes = map(len, (subclusters_for_clusters[host][c][sc][1] for sc in range(subk)))
-                assert cluster_size == sum(subcluster_sizes)
-
-                print cluster_size, subcluster_sizes
-        else:
-            # FIXME figure this out
-            pass
-
-    return clusters_for_hosts, subclusters_for_clusters, distortions
-
-def predict_for_page_load(db, page, clusters_for_hosts, subclusters_for_clusters):
-    cursor = db.cursor()
-    cursor.execute(
-        'select uri from moz_subresources where pid = ? and last_hit > ?',
-        (page[0], page[3]))
-
-    sres_from_last_time = set(sr[0] for sr in cursor.fetchall())
-    host = get_host_for_uri(page[1])
-    clusters = clusters_for_hosts[host]
-    subclusters = subclusters_for_clusters[host]
+    clusters, subclusters = host.clusters, host.subclusters
+    res_from_last_load = page.get_resources_from_last_load()
 
     best_correspondence = set()
-    for i, (mean, subresources) in enumerate(clusters):
-        in_cluster = set((uri for uri, accesses in subresources))
-        correspondence = sres_from_last_time & in_cluster
+    for i, (mean, resources) in enumerate(clusters):
+        in_cluster = [resource.uri for resource in resources]
+        correspondence = set(res_from_last_load) & set(in_cluster)
 
         if len(correspondence) > len(best_correspondence):
             best_correspondence = correspondence
@@ -209,27 +204,28 @@ def predict_for_page_load(db, page, clusters_for_hosts, subclusters_for_clusters
 
     subclusters = subclusters[closest]
 
-    predicted_sres = set()
+    predicted = set()
     corresponded_and_picked = 0
     min_corresponded_picked = 0.5 * len(best_correspondence)
     max_predicted_size = 2 * len(best_correspondence)
-    for mean, uris in subclusters:
-        corresponded_in_subcluster = len(set(uris) & best_correspondence)
+    for mean, resources in subclusters:
+        ruris = [resource.uri for resource in resources]
+        corresponded_in_subcluster = len(set(ruris) & best_correspondence)
         if not corresponded_in_subcluster:
             continue
 
-        too_big = len(predicted_sres) + len(uris) > max_predicted_size
+        too_big = len(predicted) + len(ruris) > max_predicted_size
         has_min_picked = corresponded_and_picked >= min_corresponded_picked
 
         if not has_min_picked or not too_big:
-            predicted_sres = predicted_sres.union(uris)
+            predicted = predicted.union(ruris)
             corresponded_and_picked += corresponded_in_subcluster
         else:
             break
 
-    return closest, clusters, predicted_sres, sres_from_last_time
+    return closest, predicted
 
-def visualize(clusters, host, closest_cluster, predicted_sres, explicit_sres):
+def visualize(host, closest_cluster, predicted, explicit):
     colors = [
         'black',
         'yellow',
@@ -237,23 +233,26 @@ def visualize(clusters, host, closest_cluster, predicted_sres, explicit_sres):
         'blue',
         'pink',
         'grey',
-        'orange'
+        'orange',
+        'cyan',
+        'magenta'
     ]
 
+    clusters = host.clusters
     assert len(colors) >= len(clusters) - 1
 
-    for cidx, (mean, sres) in enumerate(clusters):
+    for cidx, (mean, resources) in enumerate(clusters):
         if cidx == closest_cluster:
             plot.subplot(223)
-            for uri, accesses in sres:
-                if uri in predicted_sres:
+            for res in resources:
+                if res.uri in predicted:
                     color = 'red'
-                elif uri in explicit_sres:
+                elif res.uri in explicit:
                     color = 'orange'
                 else:
                     color = 'black'
 
-                plot.plot(*make_vector_for_subresource(host, accesses),
+                plot.plot(*res.get_fv_for_host(host),
                           color = color, marker = 'o')
 
         color = 'red' if cidx == closest_cluster else colors.pop(0)
@@ -263,18 +262,18 @@ def visualize(clusters, host, closest_cluster, predicted_sres, explicit_sres):
         plot.plot(*mean, color = color, marker = 'v')
 
         examples = 3
-        for uri, accesses in sres:
-            if examples > 0 and len(uri) < 80:
+        for res in resources:
+            if examples > 0 and len(res.uri) < 80:
                 examples -= 1
-                print '    {}'.format(uri)
+                print '    {}'.format(res.uri)
 
-            if uri in explicit_sres:
+            if res.uri in explicit:
                 plot.subplot(222)
-                plot.plot(*make_vector_for_subresource(host, accesses),
+                plot.plot(*res.get_fv_for_host(host),
                           color = color, marker = 'o')
 
             plot.subplot(221)
-            plot.plot(*make_vector_for_subresource(host, accesses),
+            plot.plot(*res.get_fv_for_host(host),
                       color = color, marker = 'o')
 
     plot.subplot(221)
@@ -292,7 +291,6 @@ def visualize(clusters, host, closest_cluster, predicted_sres, explicit_sres):
     plot.xlabel('hits per page load')
     plot.ylabel('normalized timestamp')
 
-
     plot.show()
 
 if __name__ == "__main__":
@@ -302,20 +300,25 @@ if __name__ == "__main__":
     page_uri = sys.argv[2]
 
     with sqlite3.connect(dbfile) as db:
-        clusters_for_hosts, subclusters_for_clusters, distortions = cluster_subresources_for_hosts(K, db)
+        hindex, pindex, rindex = load_database(db)
 
-        cursor = db.cursor()
-        cursor.execute('select * from moz_pages where uri = ?', (page_uri,))
-        page = cursor.fetchone()
+    huri = get_host_for_uri(page_uri)
+    host = hindex[huri]
+    cluster_resources_for_host(host, rindex)
 
-        cidx, c, predicted_sres, explicit_sres = \
-            predict_for_page_load(db, page, clusters_for_hosts, subclusters_for_clusters)
+    page = pindex.get(page_uri)
+    if page is None:
+        print >>sys.stderr, 'Unknown page'
+        sys.exit(1)
+
+    explicit = page.get_resources_from_last_load()
+    closest, predicted = predict_for_page_load(page, hindex)
 
     print 'Would take predictive actions for {0} items, ' \
           'out of which {1} were explicitly loaded last time, ' \
           'and the page loaded a total of {2} subresources last time' \
-          .format(len(predicted_sres),
-                  len(set(predicted_sres) & set(explicit_sres)),
-                  len(explicit_sres))
+          .format(len(predicted),
+                  len(set(predicted) & set(explicit)),
+                  len(explicit))
 
-    visualize(c, get_host_for_uri(page_uri), cidx, predicted_sres, explicit_sres)
+    visualize(host, closest, predicted, explicit)

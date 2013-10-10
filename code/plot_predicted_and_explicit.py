@@ -13,33 +13,34 @@ if __name__ == "__main__":
     explicit_predicted_over_explicit = []
     explicit_predicted_over_predicted = []
     with sqlite3.connect(dbfile) as db:
-        clusters_for_hosts, subclusters_for_clusters, distortions = \
-            moz_kmeans.cluster_subresources_for_hosts(moz_kmeans.K, db)
+        hindex, pindex, rindex = moz_kmeans.load_database(db)
 
         cursor = db.cursor()
         cursor.execute('select uri from moz_pages;')
         pages = filter(pages_re.match, (row[0] for row in cursor))
 
         for page_uri in pages:
-            cursor = db.cursor()
-            cursor.execute('select * from moz_pages where uri = ?', (page_uri,))
-            page = cursor.fetchone()
+            page = pindex[page_uri]
+            host = hindex[page.host]
 
-            result = moz_kmeans.predict_for_page_load(
-                db, page, clusters_for_hosts, subclusters_for_clusters)
+            if not host.clusters:
+                moz_kmeans.cluster_resources_for_host(host, rindex)
 
-            if result is not None:
-                _, _, predicted_sres, explicit_sres = result
-            else:
+            result = moz_kmeans.predict_for_page_load(page, hindex)
+            if result is None:
                 continue
 
+            cidx, predicted = result
+            predicted = set(predicted)
+            explicit = set(page.get_resources_from_last_load())
+
             plot.subplot(221)
-            plot.plot(len(explicit_sres), len(predicted_sres), 'bo')
+            plot.plot(len(explicit), len(predicted), 'bo')
 
             explicit_predicted_over_predicted.append(
-                float(len(predicted_sres & explicit_sres)) / len(predicted_sres))
+                float(len(predicted & explicit)) / len(predicted))
             explicit_predicted_over_explicit.append(
-                float(len(predicted_sres & explicit_sres)) / len(explicit_sres))
+                float(len(predicted & explicit)) / len(explicit))
 
     plot.subplot(221)
     plot.xlabel('explicitly loaded subresources')
