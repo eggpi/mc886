@@ -1,9 +1,3 @@
-youtube.seer.sqlite has some problems with pages: though I accessed youtube.com/
-and not www.youtube.com/, all subresources point to www.youtube.com. So
-www.youtube.com/ is not in moz_pages, and youtube.com is not in the hosts.
-
-- Fix histograms
-- Calculate dispersion and find K
-- New subresources start at the upper right cluster, which tends to get big. Do
-  we want that? Maybe use number of pages as a feature as well?
-- Give some examples for each cluster.
+Look for more features
+Check how many speculative loads I can make
+Use timestamps to identify long poles
