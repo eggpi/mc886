@@ -26,11 +26,10 @@ if __name__ == "__main__":
             if not host.clusters:
                 moz_kmeans.cluster_resources_for_host(host, rindex)
 
-            result = moz_kmeans.predict_for_page_load(page, hindex)
+            predicted = moz_kmeans.predict_for_page_load(page, hindex)
             if result is None:
                 continue
 
-            cidx, predicted = result
             predicted = set(predicted)
             explicit = set(page.get_resources_from_last_load())
 

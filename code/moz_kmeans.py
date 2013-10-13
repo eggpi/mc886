@@ -11,6 +11,7 @@ import numpy as np
 import matplotlib.pyplot as plot
 
 K = 10
+C = 3
 EPOCH = datetime(1970, 1, 1)
 NOW = datetime(2013, 9, 21, 0, 0, 0, 0) # datetime.now()
 
@@ -180,57 +181,71 @@ def cluster_resources_for_host(host, rindex, k = K, subk = K):
 
     host.clusters = clusters
     host.subclusters = subclusters
-    return top_distortion
 
-def predict_for_page_load(page, hindex):
-    host = hindex[page.host]
-
+    # print clusters and subclusters for debugging
     for i, (mean, resources) in enumerate(host.clusters):
-        print '{} {}:'.format(mean, len(resources)),
+        print '{} {} {}:'.format(i, mean, len(resources)),
         for mean, resources in host.subclusters[i]:
             print len(resources),
         print
 
-    clusters, subclusters = host.clusters, host.subclusters
-    res_from_last_load = page.get_resources_from_last_load()
+    return top_distortion
 
-    best_correspondence = set()
+def pick_best_cover(resources_to_cover, clusters, cover = C):
+    '''
+    Given a list of resources to cover and some clusters,
+    return a list of at most `cover` tuples representing the
+    clusters that best cover the list of resources.
+    In each tuple, the first element is an index in `clusters`, and
+    the second is that cluster's correspondence.
+    '''
+
+    best_clusters = [(-1, set())] * cover
     for i, (mean, resources) in enumerate(clusters):
         in_cluster = [resource.uri for resource in resources]
-        correspondence = set(res_from_last_load) & set(in_cluster)
+        correspondence = set(resources_to_cover) & set(in_cluster)
 
-        if len(correspondence) > len(best_correspondence):
-            best_correspondence = correspondence
-            closest = i
+        if len(correspondence) > len(best_clusters[0][1]):
+            best_clusters[0] = (i, correspondence)
+            best_clusters.sort(key = lambda e: len(e[1]))
 
-    if len(best_correspondence) == 0:
-        return None
+    return filter(lambda (c, corr): c > -1, best_clusters)
 
-    print 'Cluster size: {}'.format(len(clusters[closest][1]))
-    print 'Correspondence: {}'.format(len(best_correspondence))
+def predict_for_page_load(page, hindex):
+    host = hindex[page.host]
 
-    subclusters = subclusters[closest]
+    # cover resources from last load with clusters
+    clusters, subclusters = host.clusters, host.subclusters
+    res_from_last_load = page.get_resources_from_last_load()
+    cover_clusters = pick_best_cover(res_from_last_load, clusters)
 
-    predicted = set()
-    corresponded_and_picked = 0
-    min_corresponded_picked = 0.5 * len(best_correspondence)
-    max_predicted_size = 2 * len(best_correspondence)
-    for mean, resources in subclusters:
-        ruris = [resource.uri for resource in resources]
-        corresponded_in_subcluster = len(set(ruris) & best_correspondence)
-        if not corresponded_in_subcluster:
-            continue
+    print 'Cover clusters: {}'.format([i for i, _ in cover_clusters])
 
-        too_big = len(predicted) + len(ruris) > max_predicted_size
-        has_min_picked = corresponded_and_picked >= min_corresponded_picked
+    # compute the list of all subclusters in all of the best clusters,
+    # and all the resources that have been covered
+    to_cover_subclusters = []
+    covered_resources = set()
+    for cluster, correspondence in cover_clusters:
+        to_cover_subclusters += subclusters[cluster]
+        covered_resources = covered_resources.union(correspondence)
 
-        if not has_min_picked or not too_big:
+    cover_subclusters = pick_best_cover(covered_resources, to_cover_subclusters)
+    print 'Cover subclusters: {}, sizes {}'.format(
+        [i for i, _ in cover_subclusters],
+        [len(to_cover_subclusters[i][1]) for i, _ in cover_subclusters]
+    )
+
+    # pick some subclusters to grow our set of predicted resources,
+    # but never more than twice the size of the covered resources
+    predicted = covered_resources
+    for i, correspondence in cover_subclusters:
+        ruris = [resource.uri for resource in to_cover_subclusters[i][1]]
+        with_subcluster = predicted.union(ruris)
+
+        if len(with_subcluster) < 2 * len(covered_resources):
             predicted = predicted.union(ruris)
-            corresponded_and_picked += corresponded_in_subcluster
-        else:
-            break
 
-    return closest, predicted
+    return predicted
 
 def visualize(host, closest_cluster, predicted, explicit):
     colors = [
@@ -319,7 +334,7 @@ if __name__ == "__main__":
         sys.exit(1)
 
     explicit = page.get_resources_from_last_load()
-    closest, predicted = predict_for_page_load(page, hindex)
+    predicted = predict_for_page_load(page, hindex)
 
     explicit_predicted = set(predicted) & set(explicit)
     print 'Would take predictive actions for {0} resources, ' \

@@ -15,7 +15,7 @@ if __name__ == '__main__':
         host = hindex[huri]
 
     for k in krange:
-        distortions.append(cluster_resources_for_host(host, rindex, k, 0))
+        distortions.append(cluster_resources_for_host(host, rindex, k, 1))
 
     plot.plot(krange, distortions, 'b-')
     plot.show()
