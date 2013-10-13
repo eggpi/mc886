@@ -217,6 +217,9 @@ def predict_for_page_load(page, hindex):
     # cover resources from last load with clusters
     clusters, subclusters = host.clusters, host.subclusters
     res_from_last_load = page.get_resources_from_last_load()
+    if not res_from_last_load:
+        return None
+
     cover_clusters = pick_best_cover(res_from_last_load, clusters)
 
     print 'Cover clusters: {}'.format([i for i, _ in cover_clusters])

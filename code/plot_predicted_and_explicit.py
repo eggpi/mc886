@@ -27,7 +27,7 @@ if __name__ == "__main__":
                 moz_kmeans.cluster_resources_for_host(host, rindex)
 
             predicted = moz_kmeans.predict_for_page_load(page, hindex)
-            if result is None:
+            if predicted is None:
                 continue
 
             predicted = set(predicted)
