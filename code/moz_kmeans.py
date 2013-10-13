@@ -78,9 +78,16 @@ class Resource(object):
         page_hits = sum(page.hits for page, hits, last_hit in loads)
         last_hit = max(last_hit for page, hits, last_hit in loads)
 
-        sres_hits_per_page_hit = min(1.0, float(total_hits) / (host.bias + page_hits))
+        # biased resource hits per loading page hit
+        hits_per_page_hit = min(1.0, float(total_hits) / (host.bias + page_hits))
+
+        # timestamp of last hit
         normalized_last_hit = normalize_timestamp(last_hit)
-        return (sres_hits_per_page_hit, normalized_last_hit)
+
+        # how many pages need this resource, out of all pages
+        sharing = float(len(loads)) / len(host.pages)
+
+        return (hits_per_page_hit, sharing, normalized_last_hit)
 
 def load_database(db):
     '''
@@ -324,4 +331,4 @@ if __name__ == "__main__":
                   len(explicit),
                   (100.0 * len(explicit_predicted)) / len(explicit))
 
-    visualize(host, closest, predicted, explicit)
+    #visualize(host, closest, predicted, explicit)
