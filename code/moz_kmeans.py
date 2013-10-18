@@ -85,10 +85,7 @@ class Resource(object):
         # timestamp of last hit
         normalized_last_hit = normalize_timestamp(last_hit)
 
-        # how many pages need this resource, out of all pages
-        sharing = float(len(loads)) / len(host.pages)
-
-        return (hits_per_page_hit, sharing, normalized_last_hit)
+        return (hits_per_page_hit, normalized_last_hit)
 
 def load_database(db):
     '''
