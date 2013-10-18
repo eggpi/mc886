@@ -13,20 +13,21 @@ import matplotlib.pyplot as plot
 K = 10
 C = 3
 EPOCH = datetime(1970, 1, 1)
-NOW = datetime(2013, 9, 21, 0, 0, 0, 0) # datetime.now()
-
-WINDOW_START =  NOW - relativedelta(weeks = 2)
-WINDOW_START_US = 1e6 * (WINDOW_START - EPOCH).total_seconds()
-
-WINDOW_END = NOW
-WINDOW_END_US = 1e6 * (WINDOW_END - EPOCH).total_seconds()
+NOW = datetime.now()
+SLEEP_TIME_SECONDS = 60
 
 def get_host_for_uri(uri):
     parts = urlparse.urlparse(uri)
     return parts.scheme + '://' + parts.netloc
 
 def normalize_timestamp(timestamp):
-    return (timestamp - WINDOW_START_US) / (WINDOW_END_US - WINDOW_START_US)
+    window_start =  NOW - relativedelta(weeks = 2)
+    window_start_us = 1e6 * (window_start - EPOCH).total_seconds()
+
+    window_end = NOW
+    window_end_us = 1e6 * (window_end - EPOCH).total_seconds()
+
+    return (timestamp - window_start_us) / (window_end_us - window_start_us)
 
 class Host(object):
     def __init__(self, name):
@@ -44,7 +45,8 @@ class Host(object):
         self.bias, count = page_hits.most_common()[0]
 
 class Page(object):
-    def __init__(self, uri, hits, last_hit, resource_loads):
+    def __init__(self, id, uri, hits, last_hit, resource_loads):
+        self.id = id
         self.uri = uri
         self.hits = hits
         self.last_hit = last_hit
@@ -112,7 +114,7 @@ def load_database(db):
         resource_loads_for_page = list(cursor)
 
         assert puri not in pages
-        page = Page(puri, page_loads, last_load, resource_loads_for_page)
+        page = Page(pid, puri, page_loads, last_load, resource_loads_for_page)
         pages[puri] = page
 
         for ruri, hits, last_hit in resource_loads_for_page:
@@ -149,6 +151,9 @@ def cluster_resources_for_host(host, rindex, k = K, subk = K):
 
     kmeans_criteria = (cv2.TERM_CRITERIA_MAX_ITER, 100, 0) # 100 iterations
 
+    if len(fvs) < k:
+        return
+
     # top-level clustering
     top_distortion, top_clusters, top_means = cv2.kmeans(
         np.array(fvs, dtype = 'float32'),
@@ -167,7 +172,7 @@ def cluster_resources_for_host(host, rindex, k = K, subk = K):
 
             sub_distortion, sub_clusters, sub_means = cv2.kmeans(
                 np.array(fvs, dtype = 'float32'),
-                K = subk,
+                K = subk if subk < len(fvs) else 1,
                 criteria = kmeans_criteria,
                 attempts = 20,
                 flags = cv2.KMEANS_RANDOM_CENTERS)
@@ -315,12 +320,7 @@ def visualize(host, closest_cluster, predicted, explicit):
 
     plot.show()
 
-if __name__ == "__main__":
-    import sys
-
-    dbfile = sys.argv[1]
-    page_uri = sys.argv[2]
-
+def simulate_predict_for_page_load(page_uri):
     with sqlite3.connect(dbfile) as db:
         hindex, pindex, rindex = load_database(db)
 
@@ -346,4 +346,51 @@ if __name__ == "__main__":
                   len(explicit),
                   (100.0 * len(explicit_predicted)) / len(explicit))
 
-    #visualize(host, closest, predicted, explicit)
+    visualize(host, closest, predicted, explicit)
+
+def watch(dbfile):
+    global NOW
+
+    while True:
+        NOW = datetime.now()
+        with sqlite3.connect(dbfile) as db:
+            hindex, pindex, rindex = load_database(db)
+
+            for host in hindex.values():
+                print 'Clustering ' + host.name
+                cluster_resources_for_host(host, rindex)
+
+            cursor = db.cursor()
+            cursor.execute(
+                'create table if not exists ' +
+                'moz_predictions(pid integer, ruri text not null, ' +
+                'foreign key(pid) references moz_pages(id))')
+            cursor.execute('delete from moz_predictions')
+
+            for page in pindex.values():
+                predicted = predict_for_page_load(page, hindex)
+                if predicted is None:
+                    continue
+
+                for ruri in predicted:
+                    record = (page.id, ruri)
+                    cursor.execute(
+                        'insert into moz_predictions values (?, ?)', record)
+
+        time.sleep(SLEEP_TIME_SECONDS)
+
+if __name__ == "__main__":
+    import sys
+
+    action = sys.argv[1]
+    dbfile = sys.argv[2]
+
+    if action == 'predict':
+        puri = sys.argv[3]
+        simulate_predict_for_page_load(puri)
+    elif action == 'watch':
+        watch(dbfile)
+    else:
+        print >> sys.stderr, 'Invalid action: use predict or watch'
+        sys.exit(1)
+
