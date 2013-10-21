@@ -345,7 +345,7 @@ def visualize(host, chosen_clusters, predicted, explicit):
                       color = color, marker = 'o')
 
     plot.subplot(221)
-    plot.title('Clusters for host (red is the selected cluster)')
+    plot.title('Clusters for host (red are the selected clusters)')
     plot.xlabel('hits per page load')
     plot.ylabel('normalized timestamp')
 
