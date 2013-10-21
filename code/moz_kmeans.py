@@ -274,7 +274,8 @@ def predict_for_page_load(page, hindex):
         if len(with_subcluster) < 2 * len(covered_resources):
             predicted = predicted.union(ruris)
 
-    return predicted
+    cover_clusters = tuple(idx for idx, _ in cover_clusters)
+    return predicted, cover_clusters
 
 def predict_for_unknown_page(host):
     clusters = find_most_important_clusters(host.clusters)
@@ -288,9 +289,9 @@ def predict_for_unknown_page(host):
         mean, resources = subclusters[sidx]
         predicted += [r.uri for r in resources]
 
-    return predicted
+    return predicted, [c[0] for c in clusters]
 
-def visualize(host, closest_cluster, predicted, explicit):
+def visualize(host, chosen_clusters, predicted, explicit):
     colors = [
         'black',
         'yellow',
@@ -307,7 +308,7 @@ def visualize(host, closest_cluster, predicted, explicit):
     assert len(colors) >= len(clusters) - 1
 
     for cidx, (mean, resources) in enumerate(clusters):
-        if cidx == closest_cluster:
+        if cidx in chosen_clusters:
             plot.subplot(223)
             for res in resources:
                 if res.uri in predicted:
@@ -320,7 +321,7 @@ def visualize(host, closest_cluster, predicted, explicit):
                 plot.plot(*res.get_fv_for_host(host),
                           color = color, marker = 'o')
 
-        color = 'red' if cidx == closest_cluster else colors.pop(0)
+        color = 'red' if cidx in chosen_clusters else colors.pop(0)
 
         plot.subplot(221)
         print '{0} cluster: {1}'.format(color, mean)
@@ -368,23 +369,25 @@ def simulate_predict_for_page_load(page_uri):
 
     page = pindex.get(page_uri)
     if page is None:
-        print >>sys.stderr, 'Unknown page'
-        sys.exit(1)
+        predicted, clusters = predict_for_unknown_page(host)
+        explicit = []
+        print 'Would take predictive actions for {0} resources' \
+               .format(len(predicted))
+    else:
+        explicit = page.get_resources_from_last_load()
+        predicted, clusters = predict_for_page_load(page, hindex)
 
-    explicit = page.get_resources_from_last_load()
-    predicted = predict_for_page_load(page, hindex)
+        explicit_predicted = set(predicted) & set(explicit)
+        print 'Would take predictive actions for {0} resources, ' \
+              'out of which {1} were explicitly loaded last time, ' \
+              'and the page loaded a total of {2} resources last time ' \
+              '(so {3:.2f}% of explicit resources were predicted)' \
+              .format(len(predicted),
+                      len(explicit_predicted),
+                      len(explicit),
+                      (100.0 * len(explicit_predicted)) / len(explicit))
 
-    explicit_predicted = set(predicted) & set(explicit)
-    print 'Would take predictive actions for {0} resources, ' \
-          'out of which {1} were explicitly loaded last time, ' \
-          'and the page loaded a total of {2} resources last time ' \
-          '(so {3:.2f}% of explicit resources were predicted)' \
-          .format(len(predicted),
-                  len(explicit_predicted),
-                  len(explicit),
-                  (100.0 * len(explicit_predicted)) / len(explicit))
-
-    visualize(host, closest, predicted, explicit)
+    visualize(host, clusters, predicted, explicit)
 
 def watch(dbfile):
     global NOW
@@ -411,7 +414,7 @@ def watch(dbfile):
             cursor.execute('delete from moz_host_predictions')
 
             for page in pindex.values():
-                predicted = predict_for_page_load(page, hindex)
+                predicted, _ = predict_for_page_load(page, hindex)
                 if predicted is None:
                     continue
 
@@ -421,7 +424,7 @@ def watch(dbfile):
                         'insert into moz_page_predictions values (?, ?)', record)
 
             for host in hindex.values():
-                predicted = predict_for_unknown_page(host)
+                predicted, _ = predict_for_unknown_page(host)
                 if predicted is None:
                     return None
 
