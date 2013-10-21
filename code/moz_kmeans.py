@@ -30,7 +30,8 @@ def normalize_timestamp(timestamp):
     return (timestamp - window_start_us) / (window_end_us - window_start_us)
 
 class Host(object):
-    def __init__(self, name):
+    def __init__(self, id, name):
+        self.id = id
         self.name = name
         self.pages = []
         self.bias = 0.0
@@ -100,12 +101,15 @@ def load_database(db):
     resources = {}
 
     cursor = db.cursor()
+    cursor.execute('select id, origin from moz_hosts')
+    for hid, origin in cursor.fetchall():
+        hosts[origin] = Host(hid, origin)
+
     cursor.execute('select id, uri, loads, last_load from moz_pages')
     for pid, puri, page_loads, last_load in cursor.fetchall():
-        # find host for each page, and create the
-        # corresponding object if necessary
+        # find host for each page
         huri = get_host_for_uri(puri)
-        host = hosts.setdefault(huri, Host(huri))
+        host = hosts[huri]
 
         # find the resources loads by the page
         cursor.execute(
@@ -193,6 +197,25 @@ def cluster_resources_for_host(host, rindex, k = K, subk = K):
 
     return top_distortion
 
+def find_most_important_clusters(clusters, n = C):
+    '''
+    Given a list of clusters, pick the n most important, as defined
+    to be the ones with means closest to (1, 1).
+    Returns a list of n tuples containing the cluster indices and importances.
+    '''
+
+    if not clusters:
+        return None
+
+    most_important = [(-1, float('-inf'))] * n
+    for i, (mean, resources) in enumerate(clusters):
+        importance = -np.linalg.norm(np.array(mean) - np.array((1, 1)))
+        if importance > most_important[0][1]:
+            most_important[0] = (i, importance)
+            most_important.sort(key = lambda e: e[1])
+
+    return filter(lambda (c, imp): c > -1, most_important)
+
 def pick_best_cover(resources_to_cover, clusters, cover = C):
     '''
     Given a list of resources to cover and some clusters,
@@ -220,6 +243,7 @@ def predict_for_page_load(page, hindex):
     clusters, subclusters = host.clusters, host.subclusters
     res_from_last_load = page.get_resources_from_last_load()
     if not res_from_last_load:
+        print '{} has no resources from last load!'.format(page.uri)
         return None
 
     cover_clusters = pick_best_cover(res_from_last_load, clusters)
@@ -249,6 +273,20 @@ def predict_for_page_load(page, hindex):
 
         if len(with_subcluster) < 2 * len(covered_resources):
             predicted = predicted.union(ruris)
+
+    return predicted
+
+def predict_for_unknown_page(host):
+    clusters = find_most_important_clusters(host.clusters)
+
+    subclusters = []
+    for cidx, _ in clusters:
+        subclusters += host.subclusters[cidx]
+
+    predicted = []
+    for sidx, _ in find_most_important_clusters(subclusters):
+        mean, resources = subclusters[sidx]
+        predicted += [r.uri for r in resources]
 
     return predicted
 
@@ -363,9 +401,14 @@ def watch(dbfile):
             cursor = db.cursor()
             cursor.execute(
                 'create table if not exists ' +
-                'moz_predictions(pid integer, ruri text not null, ' +
+                'moz_page_predictions(pid integer, ruri text not null, ' +
                 'foreign key(pid) references moz_pages(id))')
-            cursor.execute('delete from moz_predictions')
+            cursor.execute(
+                'create table if not exists ' +
+                'moz_host_predictions(hid integer, ruri text not null, ' +
+                'foreign key(hid) references moz_pages(id))')
+            cursor.execute('delete from moz_page_predictions')
+            cursor.execute('delete from moz_host_predictions')
 
             for page in pindex.values():
                 predicted = predict_for_page_load(page, hindex)
@@ -375,7 +418,17 @@ def watch(dbfile):
                 for ruri in predicted:
                     record = (page.id, ruri)
                     cursor.execute(
-                        'insert into moz_predictions values (?, ?)', record)
+                        'insert into moz_page_predictions values (?, ?)', record)
+
+            for host in hindex.values():
+                predicted = predict_for_unknown_page(host)
+                if predicted is None:
+                    return None
+
+                for ruri in predicted:
+                    record = (host.id, ruri)
+                    cursor.execute(
+                        'insert into moz_host_predictions values (?, ?)', record)
 
         time.sleep(SLEEP_TIME_SECONDS)
 
