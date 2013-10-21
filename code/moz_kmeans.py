@@ -15,7 +15,7 @@ SUBCLUSTER_COVER_SIZE = 15
 K = 10
 SUBK = 5
 EPOCH = datetime(1970, 1, 1)
-NOW = datetime.utcnow()
+NOW = datetime(2013, 9, 21, 0, 0, 0, 0) #datetime.utcnow()
 SLEEP_TIME_SECONDS = 60
 
 def get_host_for_uri(uri):
