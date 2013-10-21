@@ -244,7 +244,7 @@ def predict_for_page_load(page, hindex):
     res_from_last_load = page.get_resources_from_last_load()
     if not res_from_last_load:
         print '{} has no resources from last load!'.format(page.uri)
-        return None
+        return None, None
 
     cover_clusters = pick_best_cover(res_from_last_load, clusters)
 
@@ -279,6 +279,8 @@ def predict_for_page_load(page, hindex):
 
 def predict_for_unknown_page(host):
     clusters = find_most_important_clusters(host.clusters)
+    if not clusters:
+        return None, None
 
     subclusters = []
     for cidx, _ in clusters:
@@ -426,7 +428,7 @@ def watch(dbfile):
             for host in hindex.values():
                 predicted, _ = predict_for_unknown_page(host)
                 if predicted is None:
-                    return None
+                    continue
 
                 for ruri in predicted:
                     record = (host.id, ruri)
