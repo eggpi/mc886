@@ -142,6 +142,20 @@ def build_clusters(means, clusters, resources):
         cluster[c][1].append(r)
     return cluster
 
+def normalize_sharing(fvs, mins = None, maxs = None):
+    sharings = [fv[1] for fv in fvs]
+
+    if (mins, maxs) == (None, None):
+        mins, maxs = min(sharings), max(sharings)
+
+    normalized = []
+    for fv in fvs:
+        nfv = [fv[0], (fv[1] - mins) / (maxs - mins)]
+        nfv += fv[2:]
+        normalized.append(tuple(nfv))
+
+    return normalized, mins, maxs
+
 def cluster_resources_for_host(host, rindex, k = K, subk = K):
     # find all resources needed by all pages under the host
     host_ruris = set(
@@ -158,6 +172,8 @@ def cluster_resources_for_host(host, rindex, k = K, subk = K):
     if len(fvs) < k:
         return
 
+    fvs, mins, maxs = normalize_sharing(fvs)
+
     # top-level clustering
     top_distortion, top_clusters, top_means = cv2.kmeans(
         np.array(fvs, dtype = 'float32'),
@@ -173,6 +189,7 @@ def cluster_resources_for_host(host, rindex, k = K, subk = K):
     if subk > 0:
         for mean, cluster_resources in clusters:
             fvs = [r.get_fv_for_host(host) for r in cluster_resources]
+            fvs, _, _ = normalize_sharing(fvs, mins, maxs)
 
             sub_distortion, sub_clusters, sub_means = cv2.kmeans(
                 np.array(fvs, dtype = 'float32'),
