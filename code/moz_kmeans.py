@@ -13,7 +13,7 @@ import matplotlib.pyplot as plot
 K = 10
 C = 3
 EPOCH = datetime(1970, 1, 1)
-NOW = datetime.now()
+NOW = datetime(2013, 9, 21, 0, 0, 0, 0) #datetime.now()
 SLEEP_TIME_SECONDS = 60
 
 def get_host_for_uri(uri):
