@@ -21,7 +21,7 @@ def get_host_for_uri(uri):
     return parts.scheme + '://' + parts.netloc
 
 def normalize_timestamp(timestamp):
-    window_start =  NOW - relativedelta(weeks = 2)
+    window_start =  NOW - relativedelta(hours = 6)
     window_start_us = 1e6 * (window_start - EPOCH).total_seconds()
 
     window_end = NOW
