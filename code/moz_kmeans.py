@@ -13,7 +13,7 @@ import matplotlib.pyplot as plot
 K = 10
 C = 3
 EPOCH = datetime(1970, 1, 1)
-NOW = datetime(2013, 9, 21, 0, 0, 0, 0) #datetime.now()
+NOW = datetime.utcnow()
 SLEEP_TIME_SECONDS = 60
 
 def get_host_for_uri(uri):
@@ -27,6 +27,7 @@ def normalize_timestamp(timestamp):
     window_end = NOW
     window_end_us = 1e6 * (window_end - EPOCH).total_seconds()
 
+    assert window_end_us > timestamp, "%d > %d" % (timestamp, window_end_us)
     return (timestamp - window_start_us) / (window_end_us - window_start_us)
 
 class Host(object):
@@ -395,7 +396,7 @@ def watch(dbfile):
     global NOW
 
     while True:
-        NOW = datetime.now()
+        NOW = datetime.utcnow()
         with sqlite3.connect(dbfile) as db:
             hindex, pindex, rindex = load_database(db)
 
