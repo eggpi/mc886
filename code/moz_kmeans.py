@@ -281,6 +281,7 @@ def predict_for_page_load(page, hindex):
 def predict_for_unknown_page(host):
     clusters = find_most_important_clusters(host.clusters)
     if not clusters:
+        print 'No clusters for host ' + host.name
         return None, None
 
     subclusters = []
@@ -373,12 +374,19 @@ def simulate_predict_for_page_load(page_uri):
     page = pindex.get(page_uri)
     if page is None:
         predicted, clusters = predict_for_unknown_page(host)
+        if predicted is None:
+            print 'No prediction.'
+            return
+
         explicit = []
         print 'Would take predictive actions for {0} resources' \
                .format(len(predicted))
     else:
         explicit = page.get_resources_from_last_load()
         predicted, clusters = predict_for_page_load(page, hindex)
+        if predicted is None:
+            print 'No prediction.'
+            return
 
         explicit_predicted = set(predicted) & set(explicit)
         print 'Would take predictive actions for {0} resources, ' \
