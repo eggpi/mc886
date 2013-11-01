@@ -226,6 +226,9 @@ def pick_best_cover(resources_to_cover, clusters, cover = C):
     the second is that cluster's correspondence.
     '''
 
+    if not clusters:
+        return None
+
     best_clusters = [(-1, set())] * cover
     for i, (mean, resources) in enumerate(clusters):
         in_cluster = [resource.uri for resource in resources]
@@ -248,6 +251,9 @@ def predict_for_page_load(page, hindex):
         return None, None
 
     cover_clusters = pick_best_cover(res_from_last_load, clusters)
+    if cover_clusters is None:
+        print 'No clusters for host ' + host.name
+        return None, None
 
     print 'Cover clusters: {}'.format([i for i, _ in cover_clusters])
 
