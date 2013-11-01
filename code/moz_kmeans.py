@@ -10,8 +10,9 @@ import cv2
 import numpy as np
 import matplotlib.pyplot as plot
 
-K = 10
-C = 3
+COVER_SIZE = 3
+MAXK = 10
+MINK = COVER_SIZE + 2
 EPOCH = datetime(1970, 1, 1)
 NOW = datetime.utcnow()
 SLEEP_TIME_SECONDS = 60
@@ -21,7 +22,7 @@ def get_host_for_uri(uri):
     return parts.scheme + '://' + parts.netloc
 
 def normalize_timestamp(timestamp):
-    window_start =  NOW - relativedelta(days = 3)
+    window_start =  NOW - relativedelta(days = 4)
     window_start_us = 1e6 * (window_start - EPOCH).total_seconds()
 
     window_end = NOW
@@ -143,7 +144,7 @@ def build_clusters(means, clusters, resources):
         cluster[c][1].append(r)
     return cluster
 
-def cluster_resources_for_host(host, rindex, k = K, subk = K):
+def cluster_resources_for_host(host, rindex):
     # find all resources needed by all pages under the host
     host_ruris = set(
         rl[0]
@@ -156,35 +157,46 @@ def cluster_resources_for_host(host, rindex, k = K, subk = K):
 
     kmeans_criteria = (cv2.TERM_CRITERIA_MAX_ITER, 100, 0) # 100 iterations
 
-    if len(fvs) < k:
-        return
-
     # top-level clustering
-    top_distortion, top_clusters, top_means = cv2.kmeans(
-        np.array(fvs, dtype = 'float32'),
-        K = k,
-        criteria = kmeans_criteria,
-        attempts = 20,
-        flags = cv2.KMEANS_RANDOM_CENTERS)
+    for k in range(MAXK, MINK, -1):
+        subk = k
+        if len(fvs) < k:
+            continue
 
-    clusters = build_clusters(top_means, top_clusters, host_resources)
+        top_distortion, top_clusters, top_means = cv2.kmeans(
+            np.array(fvs, dtype = 'float32'),
+            K = k,
+            criteria = kmeans_criteria,
+            attempts = 20,
+            flags = cv2.KMEANS_RANDOM_CENTERS)
+
+        clusters = build_clusters(top_means, top_clusters, host_resources)
+
+        min_cluster_size = min(len(res) for _, res in clusters)
+        if min_cluster_size > subk:
+            break
+    else:
+        print 'Warning: failed to find a good k for host ' + host.name
+        if len(fvs) < k:
+            return
+
+    print 'k = {} for {}'.format(k, host.name)
 
     # subclusters
     subclusters = []
-    if subk > 0:
-        for mean, cluster_resources in clusters:
-            fvs = [r.get_fv_for_host(host) for r in cluster_resources]
+    for mean, cluster_resources in clusters:
+        fvs = [r.get_fv_for_host(host) for r in cluster_resources]
 
-            sub_distortion, sub_clusters, sub_means = cv2.kmeans(
-                np.array(fvs, dtype = 'float32'),
-                K = subk if subk < len(fvs) else 1,
-                criteria = kmeans_criteria,
-                attempts = 20,
-                flags = cv2.KMEANS_RANDOM_CENTERS)
+        sub_distortion, sub_clusters, sub_means = cv2.kmeans(
+            np.array(fvs, dtype = 'float32'),
+            K = subk if subk < len(fvs) else 1,
+            criteria = kmeans_criteria,
+            attempts = 20,
+            flags = cv2.KMEANS_RANDOM_CENTERS)
 
-            subclusters.append(
-                build_clusters(sub_means, sub_clusters, cluster_resources)
-            )
+        subclusters.append(
+            build_clusters(sub_means, sub_clusters, cluster_resources)
+        )
 
     host.clusters = clusters
     host.subclusters = subclusters
@@ -198,7 +210,7 @@ def cluster_resources_for_host(host, rindex, k = K, subk = K):
 
     return top_distortion
 
-def find_most_important_clusters(clusters, n = C):
+def find_most_important_clusters(clusters, n = COVER_SIZE):
     '''
     Given a list of clusters, pick the n most important, as defined
     to be the ones with means closest to (1, 1).
@@ -217,7 +229,7 @@ def find_most_important_clusters(clusters, n = C):
 
     return most_important
 
-def pick_best_cover(resources_to_cover, clusters, cover = C):
+def pick_best_cover(resources_to_cover, clusters, cover = COVER_SIZE):
     '''
     Given a list of resources to cover and some clusters,
     return a list of at most `cover` tuples representing the
