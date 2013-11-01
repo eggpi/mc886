@@ -210,7 +210,7 @@ def cluster_resources_for_host(host, rindex):
 
     return top_distortion
 
-def find_most_important_clusters(clusters, n = COVER_SIZE):
+def find_most_important_clusters(clusters, n = 2 * COVER_SIZE):
     '''
     Given a list of clusters, pick the n most important, as defined
     to be the ones with means closest to (1, 1).
