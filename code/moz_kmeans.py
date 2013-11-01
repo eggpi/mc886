@@ -398,7 +398,7 @@ def simulate_predict_for_page_load(page_uri):
                       len(explicit),
                       (100.0 * len(explicit_predicted)) / len(explicit))
 
-    visualize(host, clusters, predicted, explicit)
+    #visualize(host, clusters, predicted, explicit)
 
 def watch(dbfile):
     global NOW
