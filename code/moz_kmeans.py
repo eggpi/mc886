@@ -211,11 +211,11 @@ def find_most_important_clusters(clusters, n = C):
     most_important = [(-1, float('-inf'))] * n
     for i, (mean, resources) in enumerate(clusters):
         importance = -np.linalg.norm(np.array(mean) - np.array((1, 1)))
-        if importance > most_important[0][1]:
+        if importance >= most_important[0][1]:
             most_important[0] = (i, importance)
-            most_important.sort(key = lambda e: e[1])
+            most_important.sort(key = lambda e: (e[1], e[0] != -1))
 
-    return filter(lambda (c, imp): c > -1, most_important)
+    return most_important
 
 def pick_best_cover(resources_to_cover, clusters, cover = C):
     '''
@@ -231,11 +231,11 @@ def pick_best_cover(resources_to_cover, clusters, cover = C):
         in_cluster = [resource.uri for resource in resources]
         correspondence = set(resources_to_cover) & set(in_cluster)
 
-        if len(correspondence) > len(best_clusters[0][1]):
+        if len(correspondence) >= len(best_clusters[0][1]):
             best_clusters[0] = (i, correspondence)
-            best_clusters.sort(key = lambda e: len(e[1]))
+            best_clusters.sort(key = lambda e: (len(e[1]), e[0] != -1))
 
-    return filter(lambda (c, corr): c > -1, best_clusters)
+    return best_clusters
 
 def predict_for_page_load(page, hindex):
     host = hindex[page.host]
