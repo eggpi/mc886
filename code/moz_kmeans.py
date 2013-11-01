@@ -406,50 +406,54 @@ def simulate_predict_for_page_load(page_uri):
 
     #visualize(host, clusters, predicted, explicit)
 
+def cluster(dbfile):
+    global NOW
+
+    NOW = datetime.utcnow()
+    with sqlite3.connect(dbfile) as db:
+        hindex, pindex, rindex = load_database(db)
+
+        for host in hindex.values():
+            print 'Clustering ' + host.name
+            cluster_resources_for_host(host, rindex)
+
+        cursor = db.cursor()
+        cursor.execute(
+            'create table if not exists ' +
+            'moz_page_predictions(pid integer, ruri text not null, ' +
+            'foreign key(pid) references moz_pages(id))')
+        cursor.execute(
+            'create table if not exists ' +
+            'moz_host_predictions(hid integer, ruri text not null, ' +
+            'foreign key(hid) references moz_pages(id))')
+        cursor.execute('delete from moz_page_predictions')
+        cursor.execute('delete from moz_host_predictions')
+
+        for page in pindex.values():
+            predicted, _ = predict_for_page_load(page, hindex)
+            if predicted is None:
+                continue
+
+            for ruri in predicted:
+                record = (page.id, ruri)
+                cursor.execute(
+                    'insert into moz_page_predictions values (?, ?)', record)
+
+        for host in hindex.values():
+            predicted, _ = predict_for_unknown_page(host)
+            if predicted is None:
+                continue
+
+            for ruri in predicted:
+                record = (host.id, ruri)
+                cursor.execute(
+                    'insert into moz_host_predictions values (?, ?)', record)
+
 def watch(dbfile):
     global NOW
 
     while True:
-        NOW = datetime.utcnow()
-        with sqlite3.connect(dbfile) as db:
-            hindex, pindex, rindex = load_database(db)
-
-            for host in hindex.values():
-                print 'Clustering ' + host.name
-                cluster_resources_for_host(host, rindex)
-
-            cursor = db.cursor()
-            cursor.execute(
-                'create table if not exists ' +
-                'moz_page_predictions(pid integer, ruri text not null, ' +
-                'foreign key(pid) references moz_pages(id))')
-            cursor.execute(
-                'create table if not exists ' +
-                'moz_host_predictions(hid integer, ruri text not null, ' +
-                'foreign key(hid) references moz_pages(id))')
-            cursor.execute('delete from moz_page_predictions')
-            cursor.execute('delete from moz_host_predictions')
-
-            for page in pindex.values():
-                predicted, _ = predict_for_page_load(page, hindex)
-                if predicted is None:
-                    continue
-
-                for ruri in predicted:
-                    record = (page.id, ruri)
-                    cursor.execute(
-                        'insert into moz_page_predictions values (?, ?)', record)
-
-            for host in hindex.values():
-                predicted, _ = predict_for_unknown_page(host)
-                if predicted is None:
-                    continue
-
-                for ruri in predicted:
-                    record = (host.id, ruri)
-                    cursor.execute(
-                        'insert into moz_host_predictions values (?, ?)', record)
-
+        cluster(dbfile)
         time.sleep(SLEEP_TIME_SECONDS)
 
 if __name__ == "__main__":
@@ -463,6 +467,8 @@ if __name__ == "__main__":
         simulate_predict_for_page_load(puri)
     elif action == 'watch':
         watch(dbfile)
+    elif action == 'cluster':
+        cluster(dbfile)
     else:
         print >> sys.stderr, 'Invalid action: use predict or watch'
         sys.exit(1)
