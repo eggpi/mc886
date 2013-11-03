@@ -22,7 +22,7 @@ def get_host_for_uri(uri):
     return parts.scheme + '://' + parts.netloc
 
 def normalize_timestamp(timestamp):
-    window_start =  NOW - relativedelta(days = 4)
+    window_start =  NOW - relativedelta(days = 7)
     window_start_us = 1e6 * (window_start - EPOCH).total_seconds()
 
     window_end = NOW
@@ -416,7 +416,7 @@ def simulate_predict_for_page_load(page_uri):
                       len(explicit),
                       (100.0 * len(explicit_predicted)) / len(explicit))
 
-    #visualize(host, clusters, predicted, explicit)
+    visualize(host, clusters, predicted, explicit)
 
 def cluster(dbfile):
     global NOW
