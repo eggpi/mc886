@@ -12,8 +12,8 @@ import matplotlib.pyplot as plot
 
 CLUSTER_COVER_SIZE = 3
 SUBCLUSTER_COVER_SIZE = 15
-MAXK = 10
-MINK = COVER_SIZE + 2
+K = 10
+SUBK = 5
 EPOCH = datetime(1970, 1, 1)
 NOW = datetime.utcnow()
 SLEEP_TIME_SECONDS = 60
@@ -159,29 +159,17 @@ def cluster_resources_for_host(host, rindex):
     kmeans_criteria = (cv2.TERM_CRITERIA_MAX_ITER, 100, 0) # 100 iterations
 
     # top-level clustering
-    for k in range(MAXK, MINK, -1):
-        subk = k / 2
-        if len(fvs) < k:
-            continue
+    if len(fvs) < K:
+        return None
 
-        top_distortion, top_clusters, top_means = cv2.kmeans(
-            np.array(fvs, dtype = 'float32'),
-            K = k,
-            criteria = kmeans_criteria,
-            attempts = 20,
-            flags = cv2.KMEANS_RANDOM_CENTERS)
+    top_distortion, top_clusters, top_means = cv2.kmeans(
+        np.array(fvs, dtype = 'float32'),
+        K = K,
+        criteria = kmeans_criteria,
+        attempts = 20,
+        flags = cv2.KMEANS_RANDOM_CENTERS)
 
-        clusters = build_clusters(top_means, top_clusters, host_resources)
-
-        min_cluster_size = min(len(res) for _, res in clusters)
-        if min_cluster_size > subk:
-            break
-    else:
-        print 'Warning: failed to find a good k for host ' + host.name
-        if len(fvs) < k:
-            return
-
-    print 'k = {} for {}'.format(k, host.name)
+    clusters = build_clusters(top_means, top_clusters, host_resources)
 
     # subclusters
     subclusters = []
@@ -190,7 +178,7 @@ def cluster_resources_for_host(host, rindex):
 
         sub_distortion, sub_clusters, sub_means = cv2.kmeans(
             np.array(fvs, dtype = 'float32'),
-            K = subk if subk < len(fvs) else 1,
+            K = SUBK if SUBK < len(fvs) else 1,
             criteria = kmeans_criteria,
             attempts = 20,
             flags = cv2.KMEANS_RANDOM_CENTERS)
