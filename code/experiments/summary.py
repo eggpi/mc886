@@ -1,4 +1,5 @@
 import os
+import glob
 import sys
 import json
 import padnums
@@ -12,12 +13,13 @@ def get_host_for_uri(uri):
 def get_keys(d, *keys):
     return reduce(dict.get, keys, d)
 
-def make_table_for_metric(metric, kmeansf, seerf, noseerf):
+def make_table_for_metric(metric, resultsd):
     rows = []
-    names_and_result_files = zip(
-        ("kmeans", "seer", "noseer"),
-        (kmeansf, seerf, noseerf)
-    )
+
+    names_and_result_files = []
+    for resultsf in glob.glob(os.path.join(resultsd, "*.results.json")):
+        names_and_result_files.append((
+            resultsf.replace(".results.json", ""), resultsf))
 
     for name, resultf in names_and_result_files:
         if not os.path.isfile(resultf):
@@ -27,12 +29,12 @@ def make_table_for_metric(metric, kmeansf, seerf, noseerf):
             data = json.load(f)["data"]
             rows.append([
                 name,
-                get_keys(data, "median", "firstView", metric),
-                get_keys(data, "average", "firstView", metric),
-                get_keys(data, "standardDeviation", "firstView", metric),
-                get_keys(data, "median", "repeatView", metric),
-                get_keys(data, "average", "repeatView", metric),
-                get_keys(data, "standardDeviation", "repeatView", metric),
+                float(get_keys(data, "median", "firstView", metric)),
+                float(get_keys(data, "average", "firstView", metric)),
+                float(get_keys(data, "standardDeviation", "firstView", metric)),
+                float(get_keys(data, "median", "repeatView", metric)),
+                float(get_keys(data, "average", "repeatView", metric)),
+                float(get_keys(data, "standardDeviation", "repeatView", metric)),
                 get_keys(data, "summary")
             ])
 
@@ -44,57 +46,61 @@ def make_table_for_metric(metric, kmeansf, seerf, noseerf):
 
     return [headers] + rows
 
-def summarize_experiment(dbfile, kmeansf, seerf, noseerf):
-    kmeans_results = json.load(open(kmeansf))
-    data = kmeans_results["data"]
+def summarize_experiment(dbfile, resultsd):
+    try:
+        kmeansf = os.path.join(resultsd, "kmeans.results.json")
+        kmeans_results = json.load(open(kmeansf))
+        data = kmeans_results["data"]
 
-    all_requests = []
-    for req in get_keys(data, "runs", "1", "firstView", "requests"):
-        all_requests.append(req["full_url"])
+        all_requests = []
+        for req in get_keys(data, "runs", "1", "firstView", "requests"):
+            all_requests.append(req["full_url"])
 
-    with sqlite3.connect(dbfile) as db:
-        cursor = db.cursor()
-
-        cursor.execute(
-            "select ruri from moz_page_predictions, moz_pages "
-            "where moz_pages.id = moz_page_predictions.pid and "
-            "moz_pages.uri = ?", (data["testUrl"],))
-
-        prediction = [tp[0] for tp in cursor]
-
-        if not prediction:
-            host = get_host_for_uri(data["testUrl"])
+        with sqlite3.connect(dbfile) as db:
+            cursor = db.cursor()
 
             cursor.execute(
-                "select ruri from moz_host_predictions, moz_hosts "
-                "where moz_hosts.id = moz_host_predictions.hid and "
-                "moz_hosts.origin = ?", (host,))
+                "select ruri from moz_page_predictions, moz_pages "
+                "where moz_pages.id = moz_page_predictions.pid and "
+                "moz_pages.uri = ?", (data["testUrl"],))
 
             prediction = [tp[0] for tp in cursor]
 
-        cursor.execute(
-            "select moz_subresources.uri from moz_subresources, moz_pages "
-            "where moz_pages.id = moz_subresources.pid and "
-            "moz_pages.uri = ?", (data["testUrl"],))
+            if not prediction:
+                host = get_host_for_uri(data["testUrl"])
 
-        known_resources = [tp[0] for tp in cursor]
+                cursor.execute(
+                    "select ruri from moz_host_predictions, moz_hosts "
+                    "where moz_hosts.id = moz_host_predictions.hid and "
+                    "moz_hosts.origin = ?", (host,))
 
-    requests_predicted = set(prediction) & set(all_requests)
-    known_predicted = set(known_resources) & set(prediction)
+                prediction = [tp[0] for tp in cursor]
 
-    correct_predictions_ratio = 100 * len(requests_predicted) / float(len(prediction))
-    predicted_requests_ratio = 100 * len(requests_predicted) / float(len(all_requests))
-    known_requests_ratio = 100 * len(known_resources) / float(len(all_requests))
+            cursor.execute(
+                "select moz_subresources.uri from moz_subresources, moz_pages "
+                "where moz_pages.id = moz_subresources.pid and "
+                "moz_pages.uri = ?", (data["testUrl"],))
 
-    print "At least %.2f %% predictions were correct" % correct_predictions_ratio
-    print "At least %.2f %% requests were predicted" % predicted_requests_ratio
-    print "At least %.2f %% requests were known" % known_requests_ratio
-    if known_resources:
-        known_requests_predicted_ratio = 100 * len(known_predicted) / float(len(known_resources))
-        print "Out of those, %.2f %% were predicted" % known_requests_predicted_ratio
-    print
+            known_resources = [tp[0] for tp in cursor]
 
-    speedindex_table = make_table_for_metric("SpeedIndex", kmeansf, seerf, noseerf)
+        requests_predicted = set(prediction) & set(all_requests)
+        known_predicted = set(known_resources) & set(prediction)
+
+        correct_predictions_ratio = 100 * len(requests_predicted) / float(len(prediction))
+        predicted_requests_ratio = 100 * len(requests_predicted) / float(len(all_requests))
+        known_requests_ratio = 100 * len(known_resources) / float(len(all_requests))
+
+        print "At least %.2f %% predictions were correct" % correct_predictions_ratio
+        print "At least %.2f %% requests were predicted" % predicted_requests_ratio
+        print "At least %.2f %% requests were known" % known_requests_ratio
+        if known_resources:
+            known_requests_predicted_ratio = 100 * len(known_predicted) / float(len(known_resources))
+            print "Out of those, %.2f %% were predicted" % known_requests_predicted_ratio
+        print
+    except:
+        pass
+
+    speedindex_table = make_table_for_metric("SpeedIndex", resultsd)
     print "SpeedIndex"
     padnums.pprint_table(sys.stdout, speedindex_table)
 
@@ -105,10 +111,6 @@ if __name__ == "__main__":
     for expname in os.listdir(expdir):
         exppath = os.path.join(expdir, expname)
         if os.path.isdir(exppath):
-            kmeansf = os.path.join(exppath, "kmeans.results.json")
-            seerf = os.path.join(exppath, "seer.results.json")
-            noseerf = os.path.join(exppath, "noseer.results.json")
-
             print "Experiment: " + expname
-            summarize_experiment(dbfile, kmeansf, seerf, noseerf)
+            summarize_experiment(dbfile, exppath)
             print "-------------"
