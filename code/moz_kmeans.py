@@ -10,7 +10,7 @@ import cv2
 import numpy as np
 import matplotlib.pyplot as plot
 
-CLUSTER_COVER_SIZE = 3
+CLUSTER_COVER_SIZE = 4
 SUBCLUSTER_COVER_SIZE = 15
 K = 10
 SUBK = 5
