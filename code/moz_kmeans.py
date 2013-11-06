@@ -283,7 +283,6 @@ def predict_for_page_load(page, hindex):
 
         if len(with_subcluster) < 1.5 * len(res_from_last_load):
             predicted = predicted.union(ruris)
-            print 'Picking {} (size {})'.format(i, len(predicted))
 
     cover_clusters = tuple(idx for idx, _ in cover_clusters)
     return predicted, cover_clusters
