@@ -159,7 +159,7 @@ def cluster_resources_for_host(host, rindex):
 
     # top-level clustering
     for k in range(MAXK, MINK, -1):
-        subk = k
+        subk = k / 2
         if len(fvs) < k:
             continue
 
