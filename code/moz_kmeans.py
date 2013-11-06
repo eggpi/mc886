@@ -10,7 +10,8 @@ import cv2
 import numpy as np
 import matplotlib.pyplot as plot
 
-COVER_SIZE = 3
+CLUSTER_COVER_SIZE = 3
+SUBCLUSTER_COVER_SIZE = 15
 MAXK = 10
 MINK = COVER_SIZE + 2
 EPOCH = datetime(1970, 1, 1)
@@ -210,7 +211,7 @@ def cluster_resources_for_host(host, rindex):
 
     return top_distortion
 
-def find_most_important_clusters(clusters, n = 2 * COVER_SIZE):
+def find_most_important_clusters(clusters, n):
     '''
     Given a list of clusters, pick the n most important, as defined
     to be the ones with means closest to (1, 1).
@@ -229,7 +230,7 @@ def find_most_important_clusters(clusters, n = 2 * COVER_SIZE):
 
     return most_important
 
-def pick_best_cover(resources_to_cover, clusters, cover = COVER_SIZE):
+def pick_best_cover(resources_to_cover, clusters, cover):
     '''
     Given a list of resources to cover and some clusters,
     return a list of at most `cover` tuples representing the
@@ -262,7 +263,8 @@ def predict_for_page_load(page, hindex):
         print '{} has no resources from last load!'.format(page.uri)
         return None, None
 
-    cover_clusters = pick_best_cover(res_from_last_load, clusters)
+    cover_clusters = pick_best_cover(
+        res_from_last_load, clusters, CLUSTER_COVER_SIZE)
     if cover_clusters is None:
         print 'No clusters for host ' + host.name
         return None, None
@@ -277,7 +279,8 @@ def predict_for_page_load(page, hindex):
         to_cover_subclusters += subclusters[cluster]
         covered_resources = covered_resources.union(correspondence)
 
-    cover_subclusters = pick_best_cover(covered_resources, to_cover_subclusters)
+    cover_subclusters = pick_best_cover(covered_resources,
+        to_cover_subclusters, SUBCLUSTER_COVER_SIZE)
     print 'Cover subclusters: {}, sizes {}'.format(
         [i for i, _ in cover_subclusters],
         [len(to_cover_subclusters[i][1]) for i, _ in cover_subclusters]
@@ -292,12 +295,13 @@ def predict_for_page_load(page, hindex):
 
         if len(with_subcluster) < 1.5 * len(res_from_last_load):
             predicted = predicted.union(ruris)
+            print 'Picking {} (size {})'.format(i, len(predicted))
 
     cover_clusters = tuple(idx for idx, _ in cover_clusters)
     return predicted, cover_clusters
 
 def predict_for_unknown_page(host):
-    clusters = find_most_important_clusters(host.clusters)
+    clusters = find_most_important_clusters(host.clusters, CLUSTER_COVER_SIZE)
     if not clusters:
         print 'No clusters for host ' + host.name
         return None, None
@@ -307,7 +311,8 @@ def predict_for_unknown_page(host):
         subclusters += host.subclusters[cidx]
 
     predicted = []
-    for sidx, _ in find_most_important_clusters(subclusters):
+    for sidx, _ in find_most_important_clusters(subclusters,
+            SUBCLUSTER_COVER_SIZE):
         mean, resources = subclusters[sidx]
         predicted += [r.uri for r in resources]
 
