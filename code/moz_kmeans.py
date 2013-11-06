@@ -285,12 +285,12 @@ def predict_for_page_load(page, hindex):
 
     # pick some subclusters to grow our set of predicted resources,
     # but never more than twice the size of the covered resources
-    predicted = covered_resources
+    predicted = set(res_from_last_load)
     for i, correspondence in cover_subclusters:
         ruris = [resource.uri for resource in to_cover_subclusters[i][1]]
         with_subcluster = predicted.union(ruris)
 
-        if len(with_subcluster) < 1.5 * len(covered_resources):
+        if len(with_subcluster) < 1.5 * len(res_from_last_load):
             predicted = predicted.union(ruris)
 
     cover_clusters = tuple(idx for idx, _ in cover_clusters)
