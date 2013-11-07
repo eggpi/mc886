@@ -35,13 +35,15 @@ def make_table_for_metric(metric, resultsd):
                 float(get_keys(data, "median", "repeatView", metric)),
                 float(get_keys(data, "average", "repeatView", metric)),
                 float(get_keys(data, "standardDeviation", "repeatView", metric)),
-                get_keys(data, "summary")
+                get_keys(data, "summary"),
+                get_keys(data, "successfulFVRuns"),
+                get_keys(data, "successfulRVRuns")
             ])
 
     headers = [
-        "", "first view median", "first view avg", "first view stdev",
-        "repeated view median", "repeated view avg", "repeated view stdev",
-        "summary"
+        "", "fv median", "fv avg", "fv stdev",
+        "rv median", "rv avg", "rv stdev",
+        "summary", "fv runs", "rv runs"
     ]
 
     return [headers] + rows
