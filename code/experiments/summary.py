@@ -21,6 +21,7 @@ def make_table_for_metric(metric, resultsd):
         names_and_result_files.append((
             resultsf.replace(".results.json", ""), resultsf))
 
+    connectivity = []
     for name, resultf in names_and_result_files:
         if not os.path.isfile(resultf):
             continue
@@ -37,13 +38,18 @@ def make_table_for_metric(metric, resultsd):
                 float(get_keys(data, "standardDeviation", "repeatView", metric)),
                 get_keys(data, "summary"),
                 get_keys(data, "successfulFVRuns"),
-                get_keys(data, "successfulRVRuns")
+                get_keys(data, "successfulRVRuns"),
+                get_keys(data, "connectivity")
             ])
+
+            connectivity.append(get_keys(data, "connectivity"))
+
+    assert len(set(connectivity)) == 1
 
     headers = [
         "", "fv median", "fv avg", "fv stdev",
         "rv median", "rv avg", "rv stdev",
-        "summary", "fv runs", "rv runs"
+        "summary", "fv runs", "rv runs", "network"
     ]
 
     return [headers] + rows
