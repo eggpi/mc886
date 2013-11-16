@@ -105,8 +105,8 @@ def summarize_experiment(dbfile, resultsd):
             known_requests_predicted_ratio = 100 * len(known_predicted) / float(len(known_resources))
             print "Out of those, %.2f %% were predicted" % known_requests_predicted_ratio
         print
-    except:
-        pass
+    except Exception as x:
+        print "Failed to load kmeans statistics: " + str(x)
 
     speedindex_table = make_table_for_metric("SpeedIndex", resultsd)
     print "SpeedIndex"
