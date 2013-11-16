@@ -17,5 +17,7 @@ if __name__ == '__main__':
     for k in krange:
         distortions.append(cluster_resources_for_host(host, rindex, k, 1))
 
+    plot.ylabel('distortion')
+    plot.xlabel('k')
     plot.plot(krange, distortions, 'b-')
     plot.show()
