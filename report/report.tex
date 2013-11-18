@@ -166,7 +166,7 @@ seer & 25.000,00 & 22.575,15 & 2.471,00 \\
 \label{tbl-turing}
 \end{table}
 
-Assumindo distribuição Gaussiana da média, observa-se que a média do algoritmo \emph{kmeans} ficou $3,19$ desvios padrão abaixo do \emph{noseer}. O algoritmo \emph{seer}, em comparação, ficou apenas $0,23$ desvios padrão abaixo do \emph{baseline}. Neste teste, ao menos $33,82 \%$ das predições feitas pelo algoritmo \emph{kmeans} estavam de fato corretas (isto é, foram de fato feitas no teste com a mesma URL), e essas predições corretas compõem ao menos $27,71 \%$ de todas as requisições de recursos feitas no teste. De todas as requisições feitas, $84,34 \%$ eram conhecidas, ou seja, já haviam sido feitas pela página durante o treinamento. Isso evidencia que, embora não seja necessariamente preciso prever com sucesso grande parte das requisições conhecidas para se obter bons resultados, ainda pode haver espaço para melhora do algoritmo ao explorar-se melhor tais requisições.
+Assumindo distribuição Gaussiana da média, observa-se que a média do algoritmo \emph{kmeans} ficou $3,19$ desvios padrão abaixo do \emph{noseer}. O algoritmo \emph{seer}, em comparação, ficou apenas $0,23$ desvios padrão abaixo do \emph{baseline}. Neste teste, ao menos $33,82 \%$ das predições feitas pelo algoritmo \emph{kmeans} estavam de fato corretas (isto é, foram de fato feitas no teste com a mesma URL), e essas predições corretas compõem ao menos $53,49 \%$ de todas as requisições de recursos feitas no teste. De todas as requisições feitas, $58,14 \%$ eram conhecidas, ou seja, já haviam sido feitas pela página durante o treinamento. Isso evidencia que, embora não seja necessariamente preciso prever com sucesso grande parte das requisições conhecidas para se obter bons resultados, ainda pode haver espaço para melhora do algoritmo ao explorar-se melhor tais requisições.
 
 \begin{table}
 \begin{center}
@@ -188,7 +188,26 @@ A Tabela \ref{tbl-main-turing} contém os resultados para o experimento \emph{ma
 
 Esse teste visava especificamente a exercitar a propriedade do algoritmo \emph{kmeans} de fazer predições atravessando a fronteira das páginas. Como se pode observar,  a melhora de $2,19$ desvios padrão do \emph{kmeans} em relação ao \emph{baseline}, e o fato de que o SpeedIndex neste teste ficou consideravelmente abaixo do observado no teste anterior (embora aqui, com duas páginas visitadas, também existam efeitos de \emph{cache} mais pronunciados), fornecem evidência para a validade da abordagem geral do algoritmo proposto.
 
-Nesse teste, ao menos $44,12 \%$ das predições estavam corretas, e as predições corretas compõem $22,78 \%$ do total das requisições. As requisições conhecidas foram $64,81 \%$ das requisições do teste.
+Nesse teste, ao menos $44,12 \%$ das predições estavam corretas, e as predições corretas compõem também $44,12 \%$ do total das requisições. As requisições conhecidas foram $65,71 \%$ das requisições do teste.
+
+A Tabela \ref{tbl-cnn} contém os resultados do teste \emph{cnn}, que carregou a página inicial da edição internacional do site do veículo de notícias CNN. Trata-se de uma página muito mais complexa e sujeita a mudanças do que as da Wikipedia usadas nos testes anteriores.
+
+\begin{table}
+\begin{center}
+\begin{tabular}{l*{6}{c}r}
+\hline
+Algoritmo & Mediana & Média & Desvio padrão \\
+kmeans & 20.430,00 & 24.692,85 & 7.477,00 \\
+noseer & 23.893,00 & 23,390.10 & 5,056.00 \\
+seer & 27,964.00 & 23,454.70 & 4,554.00 \\
+\hline
+\end{tabular}
+\end{center}
+\caption{SpeedIndex para o experimento cnn.}
+\label{tbl-cnn-politics}
+\end{table}
+
+Neste caso, o algoritmo \emph{kmeans} teve SpeedIndex médio de pouco mais de um desvio padrão acima do \emph{baseline}, embora com alto desvio padrão, e o algoritmo \emph{seer} teve desempenho similarmente fraco -- $0,56$ desvios padrão acima do baseline. As predições corretas foram $26,90 \%$ do total, mas apenas $36,48 \%$ das requisições já haviam sido vistas no treinamento.
 
 A Tabela \ref{tbl-cnn-politics} expressa os resultados do teste \emph{politics}, que carregou a página de política da edição internacional da CNN. Essa página não estava presente no treinamento, de forma que, caso se observasse alguma melhora nos resultados do algoritmo \emph{kmeans}, ela se deveria à heurística de escolha de predição para páginas desconhecidas.
 
@@ -208,9 +227,9 @@ seer & 24,256.00 & 22,587.40 & 2,896.00 \\
 \label{tbl-cnn-politics}
 \end{table}
 
-O algoritmo \emph{kmeans} ficou $0,66$ desvios padrão acima do \emph{baseline}, um resultado que, embora não indique melhora, também não pode ser considerado piora significativa. Aqui, apenas $5,66 \%$ das predições estavam corretas, e apenas $12,28 \%$ das requisições feitas no teste foram preditas.
+O algoritmo \emph{kmeans} ficou $0,66$ desvios padrão acima do \emph{baseline}, um resultado que, embora não indique melhora, também não pode ser considerado piora significativa. Aqui, apenas $5,66 \%$ das predições estavam corretas, e $19,81 \%$ das requisições feitas no teste foram preditas.
 
-Finalmente, a Tabela \ref{tbl-cnn-main-world} contém os resultados do teste \emph{cnn+world}, análogo ao teste \emph{main+turing}, mas envolvendo a página inicial da edição internacional da CNN e a página de notícias do mundo. Essas páginas são maiores e mudam muito mais rapidamente do que as páginas da Wikipedia usados no outro teste.
+Finalmente, a Tabela \ref{tbl-cnn-main-world} contém os resultados do teste \emph{cnn+world}, análogo ao teste \emph{main+turing}, mas envolvendo a página inicial da edição internacional da CNN e a página de notícias mundiais.
 
 \begin{table}
 \begin{center}
