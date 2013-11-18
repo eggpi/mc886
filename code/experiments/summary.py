@@ -63,6 +63,7 @@ def summarize_experiment(dbfile, resultsd):
         all_requests = []
         for req in get_keys(data, "runs", "1", "firstView", "requests"):
             all_requests.append(req["full_url"])
+        all_requests = set(all_requests)
 
         with sqlite3.connect(dbfile) as db:
             cursor = db.cursor()
@@ -91,12 +92,13 @@ def summarize_experiment(dbfile, resultsd):
 
             known_resources = [tp[0] for tp in cursor]
 
-        requests_predicted = set(prediction) & set(all_requests)
-        known_predicted = set(known_resources) & set(prediction)
+        requests_predicted = [r for r in prediction if r in all_requests]
+        known_predicted = [r for r in known_resources if r in prediction]
+        known_requested = [r for r in all_requests if r in known_resources]
 
-        correct_predictions_ratio = 100 * len(requests_predicted) / float(len(prediction))
-        predicted_requests_ratio = 100 * len(requests_predicted) / float(len(all_requests))
-        known_requests_ratio = 100 * len(known_resources) / float(len(all_requests))
+        correct_predictions_ratio = 100.0 * len(requests_predicted) / len(prediction)
+        predicted_requests_ratio = 100.0 * len(requests_predicted) / len(all_requests)
+        known_requests_ratio = 100.0 * len(known_requested) / len(all_requests)
 
         print "At least %.2f %% predictions were correct" % correct_predictions_ratio
         print "At least %.2f %% requests were predicted" % predicted_requests_ratio
