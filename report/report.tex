@@ -140,7 +140,7 @@ A metodologia dos testes consistiu em visitar algumas páginas por quatro dias, 
 
 Cada execução do WebPageTest envolveu 20 acessos a uma página em velocidade de conexão 3G.  Embora o WebPageTest também execute acessos repetidos à página (ou seja, a cada execução têm-se resultados de 20 primeiros acessos e 20 acessos repetidos), a fim de minimizar a interferência do \emph{cache} sobre os testes, e também porque os dados necessários para a predição já estavam presentes no navegador (ou seja, não se buscava aprendizado durantes os testes), foi considerado apenas o SpeedIndex dos primeiros acessos.
 
-Para cada teste, foram comparadas três variantes do Firefox: \emph{kmeans}, que utiliza o algoritmo aqui proposto, \emph{seer}, que utiliza o algoritmo já existente no navegador, e \emph{noseer}, que não toma nenhum tipo de ação preditiva, servindo como \emph{baseline}. Para a variante \emph{kmeans}, a única ação preditiva tomada foi a pré-conexão para todos os recursos preditos para uma página. Todas as variantes utilizaram os mesmos dados de treinamento durante os testes.
+Para cada teste, foram comparadas três variantes do Firefox: \emph{kmeans}, que utiliza o algoritmo aqui proposto, \emph{seer}, que utiliza o algoritmo já existente no navegador, e \emph{noseer}, que não toma nenhum tipo de ação preditiva, servindo como \emph{baseline}. Para a variante \emph{kmeans}, a única ação preditiva tomada foi a pré-conexão para todos os recursos preditos para uma página. Todas as variantes utilizaram os mesmos dados de treinamento durante os testes. Para os testes em que o algoritmo proposto aparentou ser superior, foram ainda executados testes estatísticos de Friedman, com pós-teste de Nemenyi para comparação entre os algoritmos avaliados.
 
 Cabe notar ainda dois problemas observados na metodologia de testes.
 
@@ -148,7 +148,7 @@ Primeiramente, por restrições da infraestrutura, os testes foram executados so
 
 Além disso, como a coleta inicial de dados e os testes no WebPageTest ocorreram em computadores diferentes, algumas pequenas diferenças entre essas máquinas causaram o carregamento de recursos diferentes, porém equivalentes, pela mesma página. Por exemplo, diferenças de resolução nas máquinas fazem com que imagens que diferem apenas no tamanho (e na URL) sejam acessadas pela mesma página no treinamento e no teste. Dado que as predições não causam \emph{download} dos recursos, mas apenas pré-conexão ao servidor responsável por eles, isso em geral não afeta os resultados experimentais. No entanto, a análise da acurácia das predições fica prejudicada, visto que a simples comparação entre as URLs dos recursos preditos e efetivamente carregados durante o teste considera errada uma predição que estaria correta caso o treinamento tivesse sido feito na mesma máquina que o teste. Dessa forma, as taxas de acerto desta seção devem ser tomadas como limitantes inferiores apenas.
 
-A Tabela \ref{tbl-turing} contém o SpeedIndex para a primeira visualização no teste \emph{turing}, que consiste em acessar o artigo sobre Alan Turing na Wikipedia. Trata-se de um teste simples para exercitar os algoritmos em uma página que sofre poucas modificações com o tempo.
+A Tabela \ref{tbl-turing} contém a média e mediana do SpeedIndex para a primeira visualização no teste \emph{turing}, que consiste em acessar o artigo sobre Alan Turing na Wikipedia. Trata-se de um teste simples para exercitar os algoritmos em uma página que sofre poucas modificações com o tempo.
 
 \begin{table}
 \begin{center}
@@ -162,11 +162,51 @@ seer & 25.000,00 & 22.575,15 & 2.471,00 \\
 \hline
 \end{tabular}
 \end{center}
-\caption{SpeedIndex para o experimento turing.}
+\caption{Média e mediana do SpeedIndex para o experimento turing.}
 \label{tbl-turing}
 \end{table}
 
 Assumindo distribuição Gaussiana da média, observa-se que a média do algoritmo \emph{kmeans} ficou $3,19$ desvios padrão abaixo do \emph{noseer}. O algoritmo \emph{seer}, em comparação, ficou apenas $0,23$ desvios padrão abaixo do \emph{baseline}. Neste teste, ao menos $33,82 \%$ das predições feitas pelo algoritmo \emph{kmeans} estavam de fato corretas (isto é, foram de fato feitas no teste com a mesma URL), e essas predições corretas compõem ao menos $53,49 \%$ de todas as requisições de recursos feitas no teste. De todas as requisições feitas, $58,14 \%$ eram conhecidas, ou seja, já haviam sido feitas pela página durante o treinamento. Isso evidencia que, embora não seja necessariamente preciso prever com sucesso grande parte das requisições conhecidas para se obter bons resultados, ainda pode haver espaço para melhora do algoritmo ao explorar-se melhor tais requisições.
+
+A Tabela \ref{tbl-turing-fvs} contém as medições de SpeedIndex para a primeira visualização da página em cada um dos 20 testes.
+
+\begin{table}
+\begin{center}
+\begin{tabular}{l*{6}{c}r}
+\hline
+seer & kmeans & noseer \\
+\hline
+19183 & 20300 & 36540 \\
+23500 & 17171 & 20623 \\
+21404 & 19160 & 22968 \\
+25000 & 16740 & 24368 \\
+23064 & 18818 & 25417 \\
+20480 & 27973 & 23368 \\
+21008 & 18932 & 21452 \\
+25026 & 18664 & 18419 \\
+20100 & 20115 & 21543 \\
+20072 & 18015 & 18894 \\
+23908 & 17537 & 17624 \\
+19408 & 17628 & 19517 \\
+21700 & 20644 & 17152 \\
+24800 & 20335 & 17639 \\
+25956 & 17828 & 18821 \\
+17621 & 17610 & 30248 \\
+23700 & 17664 & 30411 \\
+26273 & 19900 & 22928 \\
+24800 & 22600 & 27526 \\
+24500 & 18352 & 21312 \\
+\end{tabular}
+\end{center}
+\caption{SpeedIndex para os primeiros carregamentos no experimento turing}
+\label{tbl-turing-fvs}
+\end{table}
+
+Essa tabela foi usada em um teste de Friedman com valor crítico $6,3$, correspondente a $5 \%$ de confiança no resultado. A estatística de teste encontrada, $12,7$, fornece evidência de que a diferença encontrada é de fato significativa, e um pós-teste de Nemenyi comparando os algoritmos dois a dois confirma a evidência do algoritmo \emph{kmeans} neste experimento.
+
+A Tabela \ref{tbl-main-turing} contém os resultados para o experimento \emph{main+turing}, que consiste em visitar a página principal da Wikipedia, e a seguir o mesmo artigo sobre Alan Turing, monitorando-se o SpeedIndex desse segundo carregamento. As duas páginas haviam sido visitadas próximas uma da outra anteriormente, de forma que, quando a primeira foi requisitada, alguns recursos da segunda foram preditos.
+
+Esse teste visava especificamente a exercitar a propriedade do algoritmo \emph{kmeans} de fazer predições atravessando a fronteira das páginas. A melhora de $2,19$ desvios padrão do \emph{kmeans} em relação ao \emph{baseline}, e o fato de que o SpeedIndex neste teste ficou consideravelmente abaixo do observado no teste anterior (embora aqui, com duas páginas visitadas, também existam efeitos de \emph{cache} mais pronunciados), fornecem evidência para a validade da abordagem geral do algoritmo proposto.
 
 \begin{table}
 \begin{center}
@@ -180,13 +220,43 @@ seer & 10.031,00 & 18.103,25 & 4.303,00 \\
 \hline
 \end{tabular}
 \end{center}
-\caption{SpeedIndex para o experimento main+turing.}
+\caption{Média e mediana do SpeedIndex para o experimento main+turing.}
 \label{tbl-main-turing}
 \end{table}
 
-A Tabela \ref{tbl-main-turing} contém os resultados para o experimento \emph{main+turing}, que consiste em visitar a página principal da Wikipedia, e a seguir o mesmo artigo sobre Alan Turing, monitorando-se o SpeedIndex desse segundo carregamento. As duas páginas haviam sido visitadas próximas uma da outra anteriormente, de forma que, quando a primeira foi requisitada, alguns recursos da segunda foram preditos.
+O teste de Friedman realizado com as medidas de SpeedIndex dos primeiros carregamentos neste experimento (Tabela \ref{tbl-main-turing-fvs}), no entanto, não aponta diferença estatisticamente significativa -- aqui, o valor estatístico encontrado de $6,1$, embora próximo do valor crítico, não fornece evidência da superioridade de nenhum algoritmo sobre os demais.
 
-Esse teste visava especificamente a exercitar a propriedade do algoritmo \emph{kmeans} de fazer predições atravessando a fronteira das páginas. Como se pode observar,  a melhora de $2,19$ desvios padrão do \emph{kmeans} em relação ao \emph{baseline}, e o fato de que o SpeedIndex neste teste ficou consideravelmente abaixo do observado no teste anterior (embora aqui, com duas páginas visitadas, também existam efeitos de \emph{cache} mais pronunciados), fornecem evidência para a validade da abordagem geral do algoritmo proposto.
+\begin{table}
+\begin{center}
+\begin{tabular}{l*{6}{c}r}
+\hline
+seer & kmeans & noseer \\
+\hline
+19100 & 13244 & 18700 \\
+30465 & 23876 & 16400 \\
+16000 & 15300 & 19500 \\
+27200 & 21600 & 17300 \\
+14498 & 18900 & 8199 \\
+17800 & 19400 & 11128 \\
+15300 & 7943 & 15900 \\
+17300 & 27144 & 21251 \\
+16614 & 16200 & 26600 \\
+15800 & 15200 & 24000 \\
+21200 & 12000 & 34700 \\
+17800 & 12240 & 16800 \\
+16900 & 12200 & 20300 \\
+18800 & 15800 & 24000 \\
+16500 & 8641 & 19300 \\
+16000 & 15500 & 19100 \\
+16987 & 15800 & 7093 \\
+16235 & 9146 & 20000 \\
+10031 & 17400 & 24200 \\
+21535 & 12100 & 8595 \\
+\end{tabular}
+\end{center}
+\caption{SpeedIndex para os primeiros carregamentos no experimento main+turing}
+\label{tbl-main-turing-fvs}
+\end{table}
 
 Nesse teste, ao menos $44,12 \%$ das predições estavam corretas, e as predições corretas compõem também $44,12 \%$ do total das requisições. As requisições conhecidas foram $65,71 \%$ das requisições do teste.
 
@@ -197,14 +267,15 @@ A Tabela \ref{tbl-cnn} contém os resultados do teste \emph{cnn}, que carregou a
 \begin{tabular}{l*{6}{c}r}
 \hline
 Algoritmo & Mediana & Média & Desvio padrão \\
+\hline
 kmeans & 20.430,00 & 24.692,85 & 7.477,00 \\
 noseer & 23.893,00 & 23,390.10 & 5,056.00 \\
 seer & 27,964.00 & 23,454.70 & 4,554.00 \\
 \hline
 \end{tabular}
 \end{center}
-\caption{SpeedIndex para o experimento cnn.}
-\label{tbl-cnn-politics}
+\caption{Media e mediana do SpeedIndex para o experimento cnn.}
+\label{tbl-cnn}
 \end{table}
 
 Neste caso, o algoritmo \emph{kmeans} teve SpeedIndex médio de pouco mais de um desvio padrão acima do \emph{baseline}, embora com alto desvio padrão, e o algoritmo \emph{seer} teve desempenho similarmente fraco -- $0,56$ desvios padrão acima do baseline. As predições corretas foram $26,90 \%$ do total, mas apenas $36,48 \%$ das requisições já haviam sido vistas no treinamento.
@@ -223,7 +294,7 @@ seer & 24,256.00 & 22,587.40 & 2,896.00 \\
 \hline
 \end{tabular}
 \end{center}
-\caption{SpeedIndex para o experimento politics.}
+\caption{Média e mediana do SpeedIndex para o experimento politics.}
 \label{tbl-cnn-politics}
 \end{table}
 
@@ -243,7 +314,7 @@ seer & 20,485.00 & 22,832.00 & 7,708.00 \\
 \hline
 \end{tabular}
 \end{center}
-\caption{SpeedIndex para o experimento cnn+world.}
+\caption{Média e mediana do SpeedIndex para o experimento cnn+world.}
 \label{tbl-cnn-main-world}
 \end{table}
 
@@ -253,7 +324,7 @@ O algoritmo proposto obteve, assim, resultados muito bons para páginas simples 
 
 \section{Conclusão e trabalho futuro}
 
-Este trabalho resultou em um algoritmo de predição de acesso a recursos de páginas web que trouxe melhoras significativas no SpeedIndex de algumas páginas de teste simples sobre o \emph{baseline} e o algoritmo atualmente implementado no navegador Firefox. Para páginas complexas e páginas não vistas no treinamento, não se observou melhora significativa.
+Este trabalho resultou em um algoritmo de predição de acesso a recursos de páginas web que trouxe melhoras no SpeedIndex de algumas páginas de teste simples sobre o \emph{baseline} e o algoritmo atualmente implementado no navegador Firefox. Para páginas complexas e páginas não vistas no treinamento, não se observou melhora significativa.
 
 Sabendo-se que o tempo de carregamento de uma página é frequentemente dominado pelo tempo de acesso de um único recurso, uma direção de trabalho futuro pode envolver priorizar recursos de alguma forma, visando a sempre prever aqueles que podem atrasar mais o carregamento da página. Conforme comprovado na Seção \ref{sec-experiments}, não é necessário, e de fato pode ser custoso, simplesmente usar como predição todos os recursos conhecidos para uma página.
 
