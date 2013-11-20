@@ -4,6 +4,7 @@ import sys
 import json
 import padnums
 import sqlite3
+import itertools
 from urllib2 import urlparse
 
 def get_host_for_uri(uri):
@@ -21,6 +22,7 @@ def make_table_for_metric(metric, resultsd):
         names_and_result_files.append((
             resultsf.replace(".results.json", ""), resultsf))
 
+    fv_measures = {}
     connectivity = []
     for name, resultf in names_and_result_files:
         if not os.path.isfile(resultf):
@@ -44,7 +46,15 @@ def make_table_for_metric(metric, resultsd):
 
             connectivity.append(get_keys(data, "connectivity"))
 
+            fv_measures[name] = []
+            runs = int(get_keys(data, "successfulFVRuns"))
+            for i in range(1, runs + 1):
+                fv_measures[name].append(
+                    get_keys(data, "runs", str(i), "firstView", metric))
+
     assert len(set(connectivity)) == 1
+
+    friedman(fv_measures)
 
     headers = [
         "", "fv median", "fv avg", "fv stdev",
@@ -53,6 +63,65 @@ def make_table_for_metric(metric, resultsd):
     ]
 
     return [headers] + rows
+
+def friedman(measures):
+    k = len(measures.keys())
+    assert k == 3
+
+    n = len(measures.values()[0])
+    assert len(set(map(len, measures.values()))) == 1
+    assert n == 20
+
+    # rank and add up each row
+    labels = measures.keys()
+    data = [measures[l] for l in labels]
+    rowsums = dict((l, 0) for l in labels)
+    for row in zip(*data):
+        srow = sorted(row)
+
+        i = 0
+        while i < len(srow):
+            m = srow[i]
+            for j in range(i, len(srow)):
+                if srow[j] != m:
+                    break
+            else:
+                j += 1
+
+            if i == j - 1:
+                rowsums[labels[row.index(m)]] += i + 1
+            else:
+                rank = float(sum(range(i + 1, j - i + 1))) / (j - i)
+                idx = -1
+                for _ in range(j - i):
+                    idx = row.index(m, idx + 1)
+                    rowsums[labels[idx]] += rank
+
+                try:
+                    row.index(m, idx + 1) == -1
+                except ValueError:
+                    pass
+                else:
+                    assert False
+
+            i = j
+
+    sqrowsums = dict((l, s ** 2) for l, s in rowsums.items())
+    M = 12.0 / (n * k * (k + 1)) * sum(sqrowsums.values()) - 3 * n * (k + 1)
+
+    if M > 6.3:
+        print "The difference IS statistically significant"
+    else:
+        print "The difference IS NOT statistically significant"
+        return
+
+    avgranks = dict((l, float(s) / n) for l, s in rowsums.items())
+    critval = 2.343 * (k * (k + 1) / (6.0 * n))**0.5
+
+    for a, b in itertools.combinations(labels, 2):
+        diff = avgranks[a] - avgranks[b]
+        if abs(diff) > critval:
+            print "%s > %s" % ((b, a) if diff > 0 else (a, b))
 
 def summarize_experiment(dbfile, resultsd):
     try:
