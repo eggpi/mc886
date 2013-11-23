@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html><head>
+      <title>Predição de recursos de páginas da Web</title>
+      <meta name="author" content="Guilherme P. Gonçalves">
+      <meta http-equiv="content-type" content="text/html; charset=UTF-8">
+      <link href='https://fonts.googleapis.com/css?family=Archivo+Black' rel='stylesheet' type='text/css'>
+      <link href='https://fonts.googleapis.com/css?family=Marmelad' rel='stylesheet' type='text/css'>
+  <style>
+    body {
+      font-size: large;
+      padding: 3%;
+      background-color: rgba(0, 0, 0, 0.8);
+      font-family: 'Marmelad', sans-serif;
+    }
+
+    section {
+      display: none;
+      padding: 5%;
+      background-color: #FFFDF5;
+    }
+
+    section.active {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    section h1 {
+      width: 80%;
+      margin-bottom: 3%;
+      border-bottom: 1px solid black;
+      font-family: 'Archivo Black', sans-serif;
+      font-weight: normal;
+    }
+
+    section.splash h1 {
+      margin: 15% auto 5% auto;
+      border: none;
+      text-align: center;
+    }
+
+    section.splash .author {
+      width: 80%;
+      margin: 5% auto;
+      text-align: center;
+    }
+
+    section.splash .author-name {
+      margin: 0px 1em;
+    }
+
+    #presentation {
+      width: 800px;
+      height: 600px;
+      margin: auto;
+    }
+
+    #presentation:-webkit-full-screen {
+      width: 100%;
+      height: 100%;
+    }
+
+    a {
+      color: black;
+    }
+
+    li {
+      margin-bottom: 1%;
+    }
+
+    img {
+      width: 40%;
+      border: 1px solid black;
+      margin-left: 5%;
+    }
+</style>
+</head>
+  <body>
+    <div id="presentation">
+      <section class="splash">
+        <h1>Predição de recursos de páginas web</h1>
+        <p class="author">Guilherme P. Gonçalves</p>
+      </section>
+      <section>
+        <h1>Motivação</h1>
+        <p>Navegador moderno: "pipeline" de interpretação de documentos</p>
+        <p>Camada de rede é particularmente crítica para performance</p>
+        <p>Otimização de requisições: cache, HTTP/1 pipelining, HTTP/2 server push...</p>
+        <p>Abordagens de machine learning nos navegadores Chrome e Firefox</p>
+      </section>
+      <section>
+        <h1>Abordagens existentes</h1>
+        <p>Ações especulativas tomadas para os recursos de páginas individuais</p>
+        <p>Carregamento de recurso passa por várias etapas que podem ser otimizadas<p>
+        <img src="figures/devtools-timeline-bar.png"/>
+        <p>Firefox: pré-resolução DNS e pré-conexão</p>
+        <p>Especialmente úteis em conexões móveis, com alto RTT</p>
+      </section>
+      <section>
+        <h1>Ideia geral</h1>
+        <p>Identificar recursos com padrões de acesso similares</p>
+        <p>Agir sobre <em>host</em>, cruzando a fronteira das páginas</p>
+        <p>Hipótese simplificadora: usar dados já coletados pelo Firefox</p>
+        <p>Se possível, reduzir número de parâmetros</p>
+        <p>Alvo móvel: aprendizado online</p>
+      </section>
+      <section>
+        <h1>Ideia geral</h1>
+        <p>Solução proposta: clustering de recursos sob um mesmo host<p>
+        <p>Seleção de clusters relevantes quando uma página é carregada</p>
+        <img src="figures/youtube-clusters.png"/>
+        <p>Online: usar apenas dados "recentes"</p>
+      </section>
+      <section>
+        <h1>Descrição detalhada: feature vectors</h1>
+        <p>Feature vector bidimensional: timestamp normalizado e taxa de hits</p>
+        <p>Importâncias "global" e "local"</p>
+        <img src="figures/eqn-fv.png" style="width: 25%"/>
+        <p>Primeira componente: tempo do último acesso, normalizado pela janela de interesse</p>
+        <p>Segunda componente: hits normalizados com bias</p>
+        <img src="figures/eqn-bias.png" style="width: 25%"/>
+        <p>Bias: penalizar recursos muito novos/pouco compartilhados</p>
+      </section>
+      <section>
+        <h1>Descrição detalhada: clustering</h1>
+        <p>K-Means com distância Euclidiana</p>
+        <p>Clusters grandes: subclustering</p>
+        <p>Escolha de K: regra do cotovelo no dataset do YouTube</p>
+        <img src="figures/youtube-elbow.png"/>
+        <p>K = 10 para clusters, 5 para subclusters</p>
+      </section>
+      <section>
+        <h1>Descrição detalhada: seleção de clusters</h1>
+        <p>Efeito "long pole": grande importância a recursos "explícitos"</p>
+        <p>YouTube: 3 clusters cobrem acima de 90% dos recursos explícitos</p>
+        <p>Predição: cobrir recursos explícitos com 4 clusters, até 15 subclusters</p>
+        <img src="figures/youtube-explicit-vs-predicted.png"/>
+        <p>Agressividade: predição não maior que 50% dos recursos explícitos</p>
+      </section>
+      <section>
+        <h1>Descrição detalhada: seleção de clusters</h1>
+        <p>Ações especulativas para recursos explícitos + predição</p>
+        <img src="figures/youtube-explicit-predicted-over-predicted.png"/>
+        <p>Predições com "folga" para diversas páginas</p>
+        <p>Páginas desconhecidas: heurística</p>
+      </section>
+      <section>
+        <h1>Experimentos: metodologia</h1>
+        <p>WebPageTest com 20 carregamentos em velocidade 3G</p>
+        <p>Métrica: SpeedIndex das primeiras visualizações</p>
+        <p>Variantes: "kmeans" (pré-conexão), "seer", "noseer"</p>
+        <p>Treinamento por aproximadamente 4 dias, mesmos dados para todos</p>
+        <p>Dificuldades: flutuações da rede, diferenças nas máquinas de treinamento e teste</p>
+      </section>
+      <section>
+        <h1>Experimentos: turing</h1>
+        <p>http://en.wikipedia.org/wiki/Alan_turing</p>
+        <img src="figures/tbl-turing.png"/>
+        <p>kmeans 3,19 desvios padrão abaixo do baseline</p>
+        <p>Ao menos 53,49 % das requisições preditas, 58,14 % conhecidas</p>
+        <p>Testes de Friedman e Nemenyi apontam que diferença é significativa</p>
+      </section>
+      <section>
+        <h1>Experimentos: main+turing</h1>
+        <p>http://en.wikipedia.org/wiki/Main_page e http://en.wikipedia.org/wiki/Alan_turing</p>
+        <img src="figures/tbl-main+turing.png"/>
+        <p>kmeans 2,9 desvios padrão abaixo do baseline</p>
+        <p>Ao menos 44,12 % das predições corretas, 65,71 % das requisições conhecidas</p>
+        <p>Evidência da validade de se cruzar a fronteira das páginas</p>
+        <p>SpeedIndex menor, mas pode haver interferência do cache</p>
+        <p>No entanto, testes estatísticos NÃO apontam diferença</p>
+      </section>
+      <section>
+        <h1>Experimentos: cnn, politics, cnn+world</h1>
+        <p>Nenhuma melhora para páginas complexas e voláteis</p>
+        <p>cnn: apenas 36,48 % das requisições conhecidas</p>
+        <p>politics: heurística simples previu 19,81 % dos recursos...</p>
+        <p>...mas isso era apenas 5 % do tamanho da predição. Overhead?</p>
+      </section>
+      <section>
+        <h1>Conclusão</h1>
+        <p>Algoritmo trouxe melhoras para páginas simples</p>
+        <p>Páginas complexas ainda sem solução boa</p>
+        <p>Trabalho futuro: identificar e priorizar "long poles", maior estudo de páginas desconhecidas</p>
+    </div>
+    <script>
+    document.body.onload = function() {
+      var i = 0;
+      var slides = document.body.getElementsByTagName("section");
+
+      slides[i].classList.add("active");
+
+      document.addEventListener("keydown", function(e) {
+        if ((e.keyCode == 32 || e.keyCode == 39) && i < slides.length - 1) {
+          e.preventDefault();
+          slides[i++].classList.remove("active");
+          slides[i].classList.add("active");
+        } else if (e.keyCode == 37 && i > 0) {
+          e.preventDefault();
+          slides[i--].classList.remove("active");
+          slides[i].classList.add("active");
+        } else if (e.keyCode == 13) {
+          e.preventDefault();
+          var presentation = document.getElementById("presentation");
+
+          if (!presentation.requestFullscreen) {
+            presentation.requestFullscreen =
+              presentation.mozRequestFullScreen ?
+              presentation.mozRequestFullScreen :
+              presentation.webkitRequestFullScreen;
+          }
+
+          presentation.requestFullscreen();
+        }
+      });
+    }
+    </script>
+</body>
+</html>
