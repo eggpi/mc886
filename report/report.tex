@@ -42,7 +42,7 @@ Uma área de possível otimização da camada de rede envolve fazer com que o na
 
 O navegador Google Chrome possui um algoritmo \cite{ChromeLearning:2013:Online} que explora essa ideia, e executa ações como pré-resoluções de DNS, pré-conexões, ou mesmo requisições especulativas de recursos e pré-renderização de páginas. Recentemente um outro algoritmo similar foi implementado no navegador Firefox \cite{BugzillaSeer:2013:Online}, embora sem envolver ações mais agressivas (e, portanto, com implicações mais sérias para a privacidade do usuário) como as requisições especulativas.
 
-O algoritmo implementado no Firefox opera, em linhas gerais, sobre páginas isoladas: para cada página, tendo-se os recursos que ela já requisitou no passado, a razão do número de vezes em que um recurso foi acessado pela página pelo número de vezes que a página foi acessada dá um valor de \emph{confiança} de que aquele recurso será necessário no próximo carregamento da página. Dependendo do valor da confiança, e da data dos últimos acessos da página e do recurso, o navegador toma ações como pré-resolução de DNS  (baixa confiança) ou pré-conexão (alta confiança).
+O algoritmo implementado no Firefox opera, em linhas gerais, sobre páginas isoladas: para cada página, tendo-se os recursos que ela já requisitou no passado, a razão do número de vezes em que um recurso foi acessado pela página pelo número de vezes que a página foi acessada dá um valor de \emph{confiança} de que aquele recurso será necessário no próximo carregamento da página. Dependendo do valor da confiança, e das datas dos últimos acessos da página e do recurso, o navegador toma ações como pré-resolução de DNS  (baixa confiança) ou pré-conexão (alta confiança).
 
 Este trabalho explora uma abordagem diferente, em que todos os recursos acessados por páginas sob uma mesma origem são considerados de forma a encontrar grupos de recursos com padrões de acessos semelhantes. Quando uma página é requisitada, os grupos de recursos que melhor descrevem o comportamento passado da página são utilizados em ações preditivas. Dessa forma, caso duas páginas sejam visitadas em sucessão com frequência, por exemplo, seus recursos tendem a ser acessados de forma semelhante, e a navegação para uma delas causa a tomada de ações preditivas não apenas para os recursos dela, mas também para os da outra, potencialmente agilizando ambos os acessos.
 
@@ -55,7 +55,7 @@ Desde o início, tomou-se como prioridade explorar o problema de predição de r
 
 Além disso, o algoritmo atual no Firefox possui um número alto de constantes e parâmetros, o que, ao mesmo tempo que lhe confere flexibilidade, também o torna complexo e torna necessário um esforço de engenharia para encontrar a melhor combinação de valores para esses parâmetros. Buscou-se, no desenvolvimento deste algoritmo, expor, se possível, um número menor de parâmetros ajustáveis, facilitando assim a avaliação experimental.
 
-O algoritmo proposto é essencialmente por uma aplicação de clusterização sobre os recursos carregados por páginas sob uma mesma origem. A clusterização acontece em dois níveis: primeiramente, todos os recursos sob uma determinada origem são agrupados em \emph{clusters}; a seguir, cada cluster é dividido em \emph{subclusters}.
+O algoritmo proposto é essencialmente uma aplicação de clusterização sobre os recursos carregados por páginas sob uma mesma origem. A clusterização acontece em dois níveis: primeiramente, todos os recursos sob uma determinada origem são agrupados em \emph{clusters}, e a seguir, cada cluster é dividido em \emph{subclusters}.
 
 Uma vez calculados os agrupamentos, quando uma página já conhecida é carregada, escolhem-se como predição os recursos nos \emph{clusters} e \emph{subclusters} que melhor cobrem o conjunto de recursos requisitados por aquela página na última vez em que foi carregada. Caso a página não seja conhecida, isto é, jamais tenha sido visitada pelo usuário, ainda é possível inferir a partir dos \emph{clusters} quais recursos são mais importantes para todas as páginas sob aquela origem, e possivelmente agir sobre eles. Para este trabalho, foi implementada apenas uma heurística simples para identificar esses recursos. Este caso é de particular interesse, pois o algoritmo atual do Firefox não toma ação alguma para páginas desconhecidas. 
 
@@ -66,7 +66,7 @@ Enquanto está sendo utilizado, o navegador Firefox guarda algumas informações
 \section{Descrição detalhada do algoritmo}
 \label{sec-algorithm-detail}
 
-Sejam $P$ o conjunto de páginas conhecidas para uma dada origem, $r$ um recurso e $P_{r} \subseteq P$ o conjunto das páginas que requisitaram aquele recurso dentro da janela de tempo de tamanho $W = now() - W_0$ no passado. Sejam $T(r)$,  $T(p)$, $H(r)$ e $H(p)$ a data do último acesso e o número de acessos ao recurso $r$ e à página $p$, respectivamente. No caso dos recursos, são levados em conta todos os acessos de páginas sob a mesma origem, ou seja, $H(r)$ é a soma do número de acessos de todas as páginas de $P_{r}$ a $r$, e $T(r)$ é a data (expressa em uma \emph{timestamp} Unix) do mais recente desses acessos.
+Sejam $P$ o conjunto de páginas conhecidas para uma dada origem, $r$ um recurso e $P_{r} \subseteq P$ o conjunto das páginas que requisitaram aquele recurso dentro da janela de tempo de tamanho $W = now() - W_0$ no passado. Sejam $T(r)$,  $T(p)$, $H(r)$ e $H(p)$ a data do último acesso e o número de acessos (\emph{hits}) ao recurso $r$ e à página $p$, respectivamente. No caso dos recursos, são levados em conta todos os acessos de páginas sob a mesma origem, ou seja, $H(r)$ é a soma do número de acessos de todas as páginas de $P_{r}$ a $r$, e $T(r)$ é a data (expressa em uma \emph{timestamp} Unix) do mais recente desses acessos.
 
 Cada recurso é então descrito pelo vetor bidimensional dado pela Equação \ref{fv-eqn}:
 
@@ -75,13 +75,11 @@ Cada recurso é então descrito pelo vetor bidimensional dado pela Equação \re
 v_{r} = \left( \frac{T(r) - W_0}{now() - W_0}, \frac{H(r)}{b_{o} + \sum_{p \in P_{r}} H(p)} \right)
 \end{equation}
 
-Assim, uma das componentes do \emph{feature vector} é simplesmente o tempo de acesso mais recente do vetor, normalizado pelo tamanho da janela de tempo $W$. O tamanho da janela, embora possa ser considerado um parâmetro, pouco influi no resultado do algoritmo quando grande o suficiente para evitar descarte excessivo de dados (note que acessos anteriores ao começo da janela $W_0$ são desconsiderados). Para o desenvolvimento deste trabalho, utilizou-se uma janela de duas semanas. Esta primeira componente dá uma medida de importância global do recurso dentro daquela origem, visto que qualquer acesso a ele por qualquer página é suficiente para atualizar seu tempo de acesso mais recente.
+Assim, a primeira componente do \emph{feature vector} é simplesmente o tempo de acesso mais recente do recurso, normalizado pelo tamanho da janela de tempo $W$. O tamanho da janela, embora possa ser considerado um parâmetro, pouco influi no resultado do algoritmo quando grande o suficiente para evitar descarte excessivo de dados (note que acessos anteriores ao começo da janela $W_0$ são desconsiderados). Para o desenvolvimento deste trabalho, utilizou-se uma janela de duas semanas. Esta componente dá uma medida de importância global do recurso dentro daquela origem, visto que qualquer acesso a ele por qualquer página é suficiente para atualizar seu tempo de acesso mais recente.
 
 A segunda componente do vetor é uma quantidade de acessos relativa, que expressa a importância de um determinado recurso para as páginas que o requisitam. No numerador, tem-se apenas o número total de acessos àquele recurso por todas as páginas do host, $H(r)$. No denominador, têm-se as quantias $\sum_{p \in P_{r}} H(p)$, o número total de acessos das páginas em $P_{r}$, e $b_{o}$, um \emph{bias} específico para aquela origem.
 
-A inclusão de $b_{o}$ diferencia o caso em que um recurso $r$ possui, por exemplo, 100 acessos por 100 páginas diferentes sob uma mesma origem, cada uma com um acesso, do caso em que $r$ foi acessado apenas uma vez por uma única página. Supondo $b_{o}$ igual a zero, em ambos os casos a segunda componente do vetor de $r$ seria igual a $1$, embora seja desejável reconhecer que $r$ é bem mais importante no contexto da origem considerada no primeiro caso do que no segundo.
-
-Sendo assim, toma-se como $b_{o}$ a moda do número de acessos das páginas daquela origem:
+A inclusão de $b_{o}$ diferencia o caso em que um recurso $r$ possui, por exemplo, 100 acessos por 100 páginas diferentes sob uma mesma origem, cada uma com um acesso, do caso em que $r$ foi acessado apenas uma vez por uma única página. Supondo $b_{o}$ igual a zero, em ambos os casos a segunda componente do vetor de $r$ seria igual a $1$, embora seja desejável reconhecer que $r$ é bem mais importante no contexto da origem considerada no primeiro caso do que no segundo. Sendo assim, toma-se como $b_{o}$ a moda do número de acessos das páginas daquela origem:
 
 \begin{equation}
 b_{o} = mode(H(p), \forall p \in P)
@@ -91,7 +89,7 @@ Portanto, se $b_{o}$ e $\sum_{p \in P_{r}} H(p)$ são próximos, então aquele r
 
 Os vetores de todos os recursos são então agrupados utilizando o algoritmo Kmeans com distância Euclidiana. Durante o desenvolvimento do algoritmo proposto, utilizou-se como \emph{dataset} auxiliar dados de navegação coletados pelo Firefox durante duas semanas no YouTube. Vários dos parâmetros do algoritmo proposto, inclusive a escolha do valor de K na aplicação do Kmeans, foram derivados de experimentos nesse conjunto de dados.
 
-Para a escolha do valor de K, utilizou-se a regra do cotovelo. Conforme mostra a Figura \ref{fig-youtube-elbow}, a distorção (somatório da diferença quadrada entre cada vetor e o centróide de seu \emph{cluster}) tem maior redução para K próximo de 10. Foi tomado, portanto, esse valor fixo para o algoritmo final, embora uma estratégia adaptativa que escolha um valor menor com menos dados possa ser desejável no futuro. Cada cluster é então dividido novamente em 5 \emph{subclusters}. Esse processo é feito para cada um dos hosts conhecidos pelo navegador.
+Para a escolha do valor de K, utilizou-se a regra do cotovelo. Conforme mostra a Figura \ref{fig-youtube-elbow}, a distorção (somatório da diferença quadrada entre cada vetor e o centróide de seu \emph{cluster}) tem maior redução para K próximo de 10. Foi tomado, portanto, esse valor fixo para o algoritmo final, embora uma estratégia adaptativa que escolha um valor menor quando menos dados estão disponíveis possa ser desejável no futuro. Cada cluster é então dividido novamente em 5 \emph{subclusters}. Esse processo é feito para cada um dos hosts conhecidos pelo navegador.
 
 \begin{figure}
 	\begin{center}
@@ -101,7 +99,14 @@ Para a escolha do valor de K, utilizou-se a regra do cotovelo. Conforme mostra a
 	\end{center} 
 \end{figure}
 
-Quando uma página conhecida é visitada, então, o algoritmo consiste em computar o conjunto $R_{explicit}$ de recursos carregados explicitamente pela página em seu último acesso (denominados recursos explícitos), utilizando $T(r)$ e $T(p)$, e então selecionar os 4 clusters que contém o maior número de recursos de $R_{explicit}$. O número 4 foi escolhido porque, experimentalmente, observou-se que 3 clusters eram suficientes para cobrir acima de 90\% dos $R_{explicit}$ de quase todas as páginas no \emph{dataset} do YouTube, e o cluster a mais serve para fornecer a liberdade para que sejam selecionados clusters com recursos de outras páginas.
+Quando uma página conhecida $p$ é visitada, então, o algoritmo consiste em computar o conjunto $R_{explicit}$ de recursos carregados explicitamente pela página em seu último acesso (denominados recursos explícitos), obtido a partir de $T(r)$ e $T(p)$ como na Equação \ref{eqn-rexplicit}, e então selecionar os 4 clusters que contém o maior número de recursos de desse conjunto. 
+
+\begin{equation}
+R_{explicit} = \{ r : T(r) > T(p), p \in P_{r} \}
+\label{eqn-rexplicit}
+\end{equation}
+
+O número 4 foi escolhido porque, experimentalmente, observou-se que 3 clusters eram suficientes para cobrir acima de 90\% dos $R_{explicit}$ de quase todas as páginas no \emph{dataset} do YouTube, e o cluster a mais serve para fornecer a liberdade para que sejam selecionados clusters com recursos de outras páginas.
 
 Dos 20 subclusters que compõem esses 4 clusters, são selecionados para o conjunto de predição $R_{selected}$ os 15 que melhor cobrem $R_{explicit}$, desde que sua seleção não faça com que $R_{selected}$ tenha tamanho maior do que 50\% do tamanho de $R_{explicit}$. O valor 50\% é um parâmetro que controla a agressividade do algoritmo ao fazer suas predições. O conjunto de recursos para os quais serão tomadas ações preditivas é, então:
 
@@ -142,9 +147,7 @@ Cada execução do WebPageTest envolveu 20 acessos a uma página em velocidade d
 
 Para cada teste, foram comparadas três variantes do Firefox: \emph{kmeans}, que utiliza o algoritmo aqui proposto, \emph{seer}, que utiliza o algoritmo já existente no navegador, e \emph{noseer}, que não toma nenhum tipo de ação preditiva, servindo como \emph{baseline}. Para a variante \emph{kmeans}, a única ação preditiva tomada foi a pré-conexão para todos os recursos preditos para uma página. Todas as variantes utilizaram os mesmos dados de treinamento durante os testes. Para os testes em que o algoritmo proposto aparentou ser superior, foram ainda executados testes estatísticos de Friedman, com pós-teste de Nemenyi para comparação entre os algoritmos avaliados.
 
-Cabe notar ainda dois problemas observados na metodologia de testes.
-
-Primeiramente, por restrições da infraestrutura, os testes foram executados sobre uma conexão direta com a Internet (e não, por exemplo, usando WebPageReplay \cite{WebPageReplay:2013:Online}). Além de prejudicar a reprodutibilidade dos resultados, visto que as páginas usadas no teste estão sujeitas a mudanças, isso faz também com que os experimentos sejam afetados por oscilações normais na rede. No entanto, na medida em que os experimentos foram todos executados juntos, pode-se considerar pequena a influência desses fatores sobre o resultado final.
+Cabe notar ainda dois problemas observados na metodologia de testes causados por restrições na infraestrutura utilizada. Primeiramente, os testes foram executados sobre uma conexão direta com a Internet (e não, por exemplo, usando WebPageReplay \cite{WebPageReplay:2013:Online}). Além de prejudicar a reprodutibilidade dos resultados, visto que as páginas usadas no teste estão sujeitas a mudanças, isso faz também com que os experimentos sejam afetados por oscilações normais na rede. No entanto, na medida em que os experimentos foram todos executados juntos, pode-se considerar pequena a influência desses fatores sobre o resultado final.
 
 Além disso, como a coleta inicial de dados e os testes no WebPageTest ocorreram em computadores diferentes, algumas pequenas diferenças entre essas máquinas causaram o carregamento de recursos diferentes, porém equivalentes, pela mesma página. Por exemplo, diferenças de resolução nas máquinas fazem com que imagens que diferem apenas no tamanho (e na URL) sejam acessadas pela mesma página no treinamento e no teste. Dado que as predições não causam \emph{download} dos recursos, mas apenas pré-conexão ao servidor responsável por eles, isso em geral não afeta os resultados experimentais. No entanto, a análise da acurácia das predições fica prejudicada, visto que a simples comparação entre as URLs dos recursos preditos e efetivamente carregados durante o teste considera errada uma predição que estaria correta caso o treinamento tivesse sido feito na mesma máquina que o teste. Dessa forma, as taxas de acerto desta seção devem ser tomadas como limitantes inferiores apenas.
 
@@ -167,8 +170,6 @@ seer & 25.000,00 & 22.575,15 & 2.471,00 \\
 \end{table}
 
 Assumindo distribuição Gaussiana da média, observa-se que a média do algoritmo \emph{kmeans} ficou $3,19$ desvios padrão abaixo do \emph{noseer}. O algoritmo \emph{seer}, em comparação, ficou apenas $0,23$ desvios padrão abaixo do \emph{baseline}. Neste teste, ao menos $33,82 \%$ das predições feitas pelo algoritmo \emph{kmeans} estavam de fato corretas (isto é, foram de fato feitas no teste com a mesma URL), e essas predições corretas compõem ao menos $53,49 \%$ de todas as requisições de recursos feitas no teste. De todas as requisições feitas, $58,14 \%$ eram conhecidas, ou seja, já haviam sido feitas pela página durante o treinamento. Isso evidencia que, embora não seja necessariamente preciso prever com sucesso grande parte das requisições conhecidas para se obter bons resultados, ainda pode haver espaço para melhora do algoritmo ao explorar-se melhor tais requisições.
-
-A Tabela \ref{tbl-turing-fvs} contém as medições de SpeedIndex para a primeira visualização da página em cada um dos 20 testes.
 
 \begin{table}
 \begin{center}
@@ -202,7 +203,7 @@ seer & kmeans & noseer \\
 \label{tbl-turing-fvs}
 \end{table}
 
-Essa tabela foi usada em um teste de Friedman com valor crítico $6,3$, correspondente a $5 \%$ de confiança no resultado. A estatística de teste encontrada, $12,7$, fornece evidência de que a diferença encontrada é de fato significativa, e um pós-teste de Nemenyi comparando os algoritmos dois a dois confirma a evidência do algoritmo \emph{kmeans} neste experimento.
+A Tabela \ref{tbl-turing-fvs} contém as medições de SpeedIndex para a primeira visualização da página em cada um dos 20 testes. Essa tabela foi usada em um teste de Friedman com valor crítico $6,3$, correspondente a $5 \%$ de confiança no resultado. A estatística de teste encontrada, $12,7$, fornece evidência de que a diferença encontrada é de fato significativa, e um pós-teste de Nemenyi comparando os algoritmos dois a dois confirma a superioridade do algoritmo \emph{kmeans} sobre os demais neste experimento.
 
 A Tabela \ref{tbl-main-turing} contém os resultados para o experimento \emph{main+turing}, que consiste em visitar a página principal da Wikipedia, e a seguir o mesmo artigo sobre Alan Turing, monitorando-se o SpeedIndex desse segundo carregamento. As duas páginas haviam sido visitadas próximas uma da outra anteriormente, de forma que, quando a primeira foi requisitada, alguns recursos da segunda foram preditos.
 
