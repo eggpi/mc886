@@ -109,7 +109,7 @@
         <p>Solução proposta: clustering de recursos sob um mesmo host<p>
         <p>Seleção de clusters relevantes quando uma página é carregada</p>
         <img src="figures/youtube-clusters.png"/>
-        <p>Online: usar apenas dados "recentes"</p>
+        <p>Online: usar apenas dados "recentes" e reclusterizar periodicamente</p>
       </section>
       <section>
         <h1>Descrição detalhada: feature vectors</h1>
@@ -124,15 +124,15 @@
       <section>
         <h1>Descrição detalhada: clustering</h1>
         <p>K-Means com distância Euclidiana</p>
-        <p>Clusters grandes: subclustering</p>
         <p>Escolha de K: regra do cotovelo no dataset do YouTube</p>
         <img src="figures/youtube-elbow.png"/>
+        <p>Clusters grandes: subclustering</p>
         <p>K = 10 para clusters, 5 para subclusters</p>
       </section>
       <section>
         <h1>Descrição detalhada: seleção de clusters</h1>
-        <p>Efeito "long pole": grande importância a recursos "explícitos"</p>
         <p>YouTube: 3 clusters cobrem acima de 90% dos recursos explícitos</p>
+        <p>Efeito "long pole": grande importância a recursos "explícitos"</p>
         <p>Predição: cobrir recursos explícitos com 4 clusters, até 15 subclusters</p>
         <img src="figures/youtube-explicit-vs-predicted.png"/>
         <p>Agressividade: predição não maior que 50% dos recursos explícitos</p>
@@ -146,7 +146,7 @@
       </section>
       <section>
         <h1>Experimentos: metodologia</h1>
-        <p>WebPageTest com 20 carregamentos em velocidade 3G</p>
+        <p>WebPageTest com 20 carregamentos em conexão 3G</p>
         <p>Métrica: SpeedIndex das primeiras visualizações</p>
         <p>Variantes: "kmeans" (pré-conexão), "seer", "noseer"</p>
         <p>Treinamento por aproximadamente 4 dias, mesmos dados para todos</p>
